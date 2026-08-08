@@ -626,7 +626,7 @@ GDPR isn't Malaysian law, but it's a useful benchmark for privacy-by-design. If 
 
 ### 6.1 The Digital Divide in Malaysian Early Childhood Education
 
-Malaysian kindergarten infrastructure covers a huge range. On one end: well-funded urban private preschools with modern computer labs. On the other: rural *Tadika KEMAS* (Community Development Department kindergartens) running donated, decade-old laptops running Windows 7 with 4GB of RAM. The digital divide isn't just about internet access — it's about hardware, installation permissions, and whether anyone around knows how to fix things when they break.
+Malaysian kindergarten infrastructure covers a huge range. On one end: well-funded urban private preschools with modern computer labs. On the other: rural Tadika KEMAS (Community Development Department kindergartens) running donated, decade-old laptops running Windows 7 with 4GB of RAM. The digital divide isn't just about internet access — it's about hardware, installation permissions, and whether anyone around knows how to fix things when they break.
 
 I built KinderSort Lite to run on the worst computer it might encounter, not the best one. If it works on a 10-year-old laptop with 4GB of RAM, it'll work anywhere. That was my rule. I may not have always succeeded — the CNN detector is genuinely slow on old CPUs — but that was the target.
 
@@ -1087,31 +1087,31 @@ At the end of the day, KinderSort Lite is a tool that does one job: helps overwo
 
 ## References
 
-1. ACM/IEEE-CS Joint Task Force on Software Engineering Ethics and Professional Practices. (2018). *Software Engineering Code of Ethics and Professional Practice (Version 5.2)*. https://www.computer.org/education/code-of-ethics
+1. ACM/IEEE-CS Joint Task Force on Software Engineering Ethics and Professional Practices. (2018). Software Engineering Code of Ethics and Professional Practice (Version 5.2). https://www.computer.org/education/code-of-ethics
 
-2. Government of Malaysia. (2010). *Personal Data Protection Act 2010 (Act 709)*. Laws of Malaysia.
+2. Government of Malaysia. (2010). Personal Data Protection Act 2010 (Act 709). Laws of Malaysia.
 
-3. European Union. (2016). *Regulation (EU) 2016/679 — General Data Protection Regulation (GDPR)*. Official Journal of the European Union.
+3. European Union. (2016). Regulation (EU) 2016/679 — General Data Protection Regulation (GDPR). Official Journal of the European Union.
 
-4. Ge, S., Li, J., Ye, Q., & Luo, Z. (2018). "Detecting Masked Faces in the Wild with LLE-CNNs." *Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)*.
+4. Ge, S., Li, J., Ye, Q., & Luo, Z. (2018). "Detecting Masked Faces in the Wild with LLE-CNNs." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR).
 
-5. Bradski, G. (2000). "The OpenCV Library." *Dr. Dobb's Journal of Software Tools*.
+5. Bradski, G. (2000). "The OpenCV Library." Dr. Dobb's Journal of Software Tools.
 
-6. King, D. E. (2009). "Dlib-ml: A Machine Learning Toolkit." *Journal of Machine Learning Research*, 10, 1755–1758.
+6. King, D. E. (2009). "Dlib-ml: A Machine Learning Toolkit." Journal of Machine Learning Research, 10, 1755–1758.
 
-7. Geitgey, A. (2017). *face_recognition: The world's simplest facial recognition API for Python*. https://github.com/ageitgey/face_recognition
+7. Geitgey, A. (2017). face_recognition: The world's simplest facial recognition API for Python. https://github.com/ageitgey/face_recognition
 
-8. Bentham, J. (1789). *An Introduction to the Principles of Morals and Legislation*.
+8. Bentham, J. (1789). An Introduction to the Principles of Morals and Legislation.
 
-9. Kant, I. (1785). *Groundwork of the Metaphysics of Morals*.
+9. Kant, I. (1785). Groundwork of the Metaphysics of Morals.
 
-10. Aristotle. (c. 350 BCE). *Nicomachean Ethics*. (Trans. W. D. Ross).
+10. Aristotle. (c. 350 BCE). Nicomachean Ethics. (Trans. W. D. Ross).
 
-11. Locke, J. (1689). *Two Treatises of Government*.
+11. Locke, J. (1689). Two Treatises of Government.
 
-12. Zuiderveen Borgesius, F. J. (2020). "Strengthening legal protection against discrimination by algorithms and artificial intelligence." *The International Journal of Human Rights*, 24(10), 1572–1593.
+12. Zuiderveen Borgesius, F. J. (2020). "Strengthening legal protection against discrimination by algorithms and artificial intelligence." The International Journal of Human Rights, 24(10), 1572–1593.
 
-13. UNESCO. (2021). *Recommendation on the Ethics of Artificial Intelligence*. UNESCO Digital Library.
+13. UNESCO. (2021). Recommendation on the Ethics of Artificial Intelligence. UNESCO Digital Library.
 
 14. KinderSort Original Project. (2026). lerlerchan/KinderSort. https://github.com/lerlerchan/KinderSort
 
@@ -1119,4 +1119,4 @@ At the end of the day, KinderSort Lite is a tool that does one job: helps overwo
 
 ---
 
-*This report was prepared for CSIS3083 Ethics in Computing, August 2026. Student ID: D240266C. All code is available under the MIT License at https://github.com/JobKang/KinderSort.*
+This report was prepared for CSIS3083 Ethics in Computing, August 2026. Student ID: D240266C. All code is available under the MIT License at https://github.com/JobKang/KinderSort.
