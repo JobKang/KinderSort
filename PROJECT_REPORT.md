@@ -430,12 +430,12 @@ First, who actually gets affected by this system? Here are the stakeholders I id
 
 | Stakeholder | Interest | Vulnerability |
 |---|---|---|
-| **Children (students)** | Privacy of biometric data; correct photo attribution | Unable to consent; legally protected (minors) |
-| **Teachers** | Efficient workflow; reliable tool; legal compliance | Low technical literacy; time-constrained; liable for data breaches |
-| **Parents/Guardians** | Receiving correct photos of their children only | Trust in school's data handling; privacy expectations |
-| **School Administration** | Regulatory compliance (PDPA 2010); cost-effective tools | Budget-constrained; legal accountability |
-| **Original Developer (lerlerchan)** | Open-source reputation; MIT License compliance | Reliance on downstream users' ethical conduct |
-| **Future Contributors** | Clear codebase; ethical design patterns | May inadvertently introduce privacy vulnerabilities |
+| Children (students) | Privacy of biometric data; correct photo attribution | Unable to consent; legally protected (minors) |
+| Teachers | Efficient workflow; reliable tool; legal compliance | Low technical literacy; time-constrained; liable for data breaches |
+| Parents/Guardians | Receiving correct photos of their children only | Trust in school's data handling; privacy expectations |
+| School Administration | Regulatory compliance (PDPA 2010); cost-effective tools | Budget-constrained; legal accountability |
+| Original Developer (lerlerchan) | Open-source reputation; MIT License compliance | Reliance on downstream users' ethical conduct |
+| Future Contributors | Clear codebase; ethical design patterns | May inadvertently introduce privacy vulnerabilities |
 
 ### 5.2 Application of Ethical Theories
 
@@ -549,39 +549,39 @@ Children cannot legally consent to biometric processing. Consent must come from 
 
 The ACM/IEEE Software Engineering Code of Ethics (v5.2) lays out eight principles. I went through each one and checked how KinderSort Lite stacks up. Some of these were easy to satisfy — the offline architecture basically does the privacy work for you. Others required more deliberate choices.
 
-**Principle 1: PUBLIC — Act consistently with the public interest.**
+Principle 1: PUBLIC — Act consistently with the public interest.
 
 - 1.03 says you should only approve software if you have good reason to believe it's safe, tested, and doesn't harm privacy or quality of life. The evaluation framework I built, along with the test data generator and documented accuracy metrics, gives me that confidence. Privacy is better, not worse, because nothing leaves the device.
 - 1.04 requires disclosing potential dangers to users or the public. The confidence scoring and the `_unmatched/` folder work as built-in disclosure — they tell the teacher when the system isn't sure about a match. It's not a formal disclosure process, but for a classroom tool, I think it's proportional.
 
-**Principle 2: CLIENT AND EMPLOYER — Act in the client's best interest, consistent with public interest.**
+Principle 2: CLIENT AND EMPLOYER — Act in the client's best interest, consistent with public interest.
 
 - 2.02 says don't knowingly use software obtained illegally or unethically. KinderSort Lite is built on the original MIT-licensed project with clear attribution. The model files come from official OpenCV repositories.
 - 2.05 requires keeping client information private. The whole offline thing handles this. There's literally no way for data to leave the teacher's computer because there's no networking code. I didn't even have to try to be compliant — the architecture enforces it.
 
-**Principle 3: PRODUCT — Meet the highest professional standards possible.**
+Principle 3: PRODUCT — Meet the highest professional standards possible.
 
 - 3.01 pushes for high quality at acceptable cost on a reasonable schedule. The CLAHE preprocessing and ensemble detection improve quality over the baseline. The tool is free and open source. Development happened within the academic term.
 - 3.10 says to ensure adequate testing, debugging, and review. The evaluation framework, test data generator, and logging system provide that infrastructure.
 - 3.12 says to develop software that respects the privacy of the people affected by it. Privacy preservation is the foundation of the whole architecture. I didn't bolt it on at the end — the offline requirement was there from day one.
 
-**Principle 4: JUDGMENT — Maintain integrity and independence in professional judgment.**
+Principle 4: JUDGMENT — Maintain integrity and independence in professional judgment.
 
 - 4.01 says to temper technical judgments by supporting human values. Choosing accuracy over speed (ensemble detection) and transparency over simplicity (confidence scoring) reflects that trade-off. These weren't the easiest choices, but they were the right ones for the context.
 
-**Principle 5: MANAGEMENT — Promote an ethical approach to software engineering.**
+Principle 5: MANAGEMENT — Promote an ethical approach to software engineering.
 
 - 5.07 says to assign work based on education and experience. This report documents the educational context — the project was developed within CSIS3083, and every design decision is traced back to what I learned in the course.
 
-**Principle 6: PROFESSION — Advance the integrity and reputation of the profession.**
+Principle 6: PROFESSION — Advance the integrity and reputation of the profession.
 
 - 6.08 says to take responsibility for detecting, correcting, and reporting errors. The evaluation framework, logging, and GitHub issue tracker create the infrastructure for that. It's not perfect, but the mechanisms are in place.
 
-**Principle 7: COLLEAGUES — Be fair to and supportive of colleagues.**
+Principle 7: COLLEAGUES — Be fair to and supportive of colleagues.
 
 - 7.03 says to fully credit others' work and not take undue credit. The original KinderSort by lerlerchan is credited throughout this report, in the codebase as a fork, and in the GUI itself. I built on their work — I didn't pretend it was mine.
 
-**Principle 8: SELF — Participate in lifelong learning and promote ethical practice.**
+Principle 8: SELF — Participate in lifelong learning and promote ethical practice.
 
 - 8.01 says to keep learning about developments in software analysis, design, development, and testing. This project got me into computer vision research, ethical AI design, and software packaging — areas I hadn't touched before. The fact that I'm writing this reflection at all is evidence of engagement with the principle.
 
@@ -593,13 +593,13 @@ Malaysia's PDPA 2010 (Act 709) sets out seven principles for handling personal d
 
 | PDPA Principle | KinderSort Lite Compliance |
 |---|---|
-| **General Principle** (§6): Personal data shall not be processed without consent | Teachers control all data; the system is a tool, not a data controller. Schools obtain parental consent for photography independently. |
-| **Notice and Choice Principle** (§7): Data subjects shall be informed of processing | The audit log documents all processing. The GUI displays active AI features. |
-| **Disclosure Principle** (§8): Personal data shall not be disclosed without consent | Offline architecture physically prevents disclosure. No network calls in the code beyond optional model downloads. |
-| **Security Principle** (§9): Personal data shall be protected from loss, misuse, modification, or unauthorised access | Data remains on the teacher's local machine. No cloud storage, no API calls. |
-| **Retention Principle** (§10): Personal data shall not be kept longer than necessary | The encoding cache expires after 24 hours. Sorted photos are in teacher-controlled folders. |
-| **Data Integrity Principle** (§11): Personal data shall be accurate and up-to-date | Cache invalidation ensures encodings are regenerated when reference photos change. Confidence scoring helps identify potentially inaccurate matches. |
-| **Access Principle** (§12): Data subjects have the right to access their personal data | Since data is local, teachers can provide access directly without navigating third-party data controllers. |
+| General Principle (§6): Personal data shall not be processed without consent | Teachers control all data; the system is a tool, not a data controller. Schools obtain parental consent for photography independently. |
+| Notice and Choice Principle (§7): Data subjects shall be informed of processing | The audit log documents all processing. The GUI displays active AI features. |
+| Disclosure Principle (§8): Personal data shall not be disclosed without consent | Offline architecture physically prevents disclosure. No network calls in the code beyond optional model downloads. |
+| Security Principle (§9): Personal data shall be protected from loss, misuse, modification, or unauthorised access | Data remains on the teacher's local machine. No cloud storage, no API calls. |
+| Retention Principle (§10): Personal data shall not be kept longer than necessary | The encoding cache expires after 24 hours. Sorted photos are in teacher-controlled folders. |
+| Data Integrity Principle (§11): Personal data shall be accurate and up-to-date | Cache invalidation ensures encodings are regenerated when reference photos change. Confidence scoring helps identify potentially inaccurate matches. |
+| Access Principle (§12): Data subjects have the right to access their personal data | Since data is local, teachers can provide access directly without navigating third-party data controllers. |
 
 PDPA Registration: KinderSort Lite is a tool the school uses — it's not a data processor in its own right. Schools are still responsible for PDPA registration. What the software does is make it easier to handle photographs responsibly, since everything stays local and teachers keep control.
 
