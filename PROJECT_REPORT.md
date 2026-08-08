@@ -601,15 +601,15 @@ Malaysia's PDPA 2010 (Act 709) sets out seven principles for handling personal d
 | **Data Integrity Principle** (§11): Personal data shall be accurate and up-to-date | Cache invalidation ensures encodings are regenerated when reference photos change. Confidence scoring helps identify potentially inaccurate matches. |
 | **Access Principle** (§12): Data subjects have the right to access their personal data | Since data is local, teachers can provide access directly without navigating third-party data controllers. |
 
-PDPA Registration: KinderSort Lite is a tool used by the data user (the school), not a data processor itself. Schools using KinderSort Lite remain responsible for PDPA registration and compliance. The software facilitates compliance by making it technically easier to handle photographs responsibly.
+PDPA Registration: KinderSort Lite is a tool the school uses — it's not a data processor in its own right. Schools are still responsible for PDPA registration. What the software does is make it easier to handle photographs responsibly, since everything stays local and teachers keep control.
 
 ### 5.5 GDPR Implications (Extraterritorial Relevance)
 
 GDPR isn't Malaysian law, but it's a useful benchmark for privacy-by-design. If you can satisfy GDPR, you're probably doing something right:
 
-- Article 25 — Data Protection by Design and by Default: KinderSort Lite embodies this principle through offline-first architecture, data minimisation (only encodings stored, not original images), and user-controlled processing options.
-- Article 35 — Data Protection Impact Assessment (DPIA): This report's ethical analysis section, confidence scoring system, and documented limitations serve as a DPIA equivalent, identifying risks (false matches, demographic bias) and mitigations.
-- Recital 38 — Children's Data: GDPR recognises children's personal data as meriting "specific protection." KinderSort Lite's handling of children's biometric data through local-only, transparent, and reversible processing aligns with this requirement.
+- Article 25 — Data Protection by Design and by Default: KinderSort Lite follows this principle with offline-first architecture, data minimisation (only encodings stored, not original images), and user-controlled processing options.
+- Article 35 — Data Protection Impact Assessment (DPIA): This report's ethical analysis, confidence scoring system, and documented limitations amount to a DPIA — they identify risks (false matches, demographic bias) and the steps I took to mitigate them.
+- Recital 38 — Children's Data: GDPR says children's personal data needs "specific protection." KinderSort Lite handles children's biometric data through local-only, transparent, and reversible processing. I think that lines up.
 
 ### 5.6 Ethical Risk Matrix
 
@@ -627,19 +627,19 @@ GDPR isn't Malaysian law, but it's a useful benchmark for privacy-by-design. If 
 
 ### 6.1 The Digital Divide in Malaysian Early Childhood Education
 
-Malaysian kindergarten infrastructure spans a wide spectrum: from well-funded urban private preschools with modern computer labs to rural *Tadika KEMAS* (Community Development Department kindergartens) operating with donated, decade-old laptops. The digital divide is not merely about internet access — it extends to hardware capability, software installation permissions, and technical support availability.
+Malaysian kindergarten infrastructure covers a huge range: well-funded urban private preschools with modern computer labs on one end, and rural *Tadika KEMAS* (Community Development Department kindergartens) running donated, decade-old laptops on the other. The digital divide isn't just about internet access — it's about hardware, installation permissions, and whether anyone around knows how to fix things when they break.
 
 I built KinderSort Lite to run on the worst computer it might encounter, not the best one. If it works on a 10-year-old laptop with 4GB of RAM, it'll work anywhere.
 
 ### 6.2 CPU-Only Architecture
 
-All face detection, encoding, and preprocessing operations run on CPU only. This is achieved through:
+All face detection, encoding, and preprocessing operations run on CPU only. Here's how:
 
 - dlib's CPU-optimised C++ backend: The HOG face detector and ResNet encoding model are compiled to native code with SIMD optimisations (SSE4/AVX on x86 processors).
 - OpenCV's DNN module with CPU target: `cv2.dnn.DNN_TARGET_CPU` explicitly avoids GPU acceleration attempts.
 - No CUDA/cuDNN dependency: The `requirements.txt` specifies `opencv-python-headless==4.9.0.80`, not `opencv-python` or GPU variants.
 
-The elimination of GPU dependency means KinderSort Lite runs on any Windows PC manufactured in the last 15 years, including machines with integrated Intel graphics and no dedicated GPU.
+Dropping the GPU dependency means KinderSort Lite runs on any Windows PC from the last 15 years, even machines with integrated Intel graphics and no dedicated GPU.
 
 ### 6.3 Memory Management Strategy
 
@@ -659,37 +659,37 @@ The `FaceEngine` class implements three-tier fallback that preserves functionali
 | 2. OpenCV DNN | `opencv-python-headless` (pip, no compilation) | Good (SSD Caffe) | Fair (Custom 128-d) | School computer with Python but no MSVC |
 | 3. Haar Cascade | OpenCV always includes this | Basic (Haar features) | Fair (Custom 128-d) | Any environment with OpenCV |
 
-This design means teachers are never blocked by missing dependencies. If dlib cannot be installed (common on school Windows machines without Visual Studio), the system automatically degrades to OpenCV. The GUI displays the active backend through the log file.
+This design means teachers are never stuck because of missing dependencies. If dlib won't install (common on school Windows machines without Visual Studio), the system quietly drops down to OpenCV. The GUI shows which backend it's using through the log file.
 
 ### 6.5 Encoding Cache: Computational Efficiency
 
-The encoding cache (`encoding_cache.json`) provides dramatic efficiency gains for the common workflow of repeated sorting runs:
+The encoding cache (`encoding_cache.json`) makes a huge difference for the most common workflow — running the sort over and over as new photos come in:
 
 - First run: 25 reference photos × ~3 seconds each (CNN detection + encoding) = ~75 seconds for reference loading.
 - Subsequent runs (within 24 hours): <0.1 seconds (JSON deserialisation of ~3 KB file).
 - Savings per run: ~75 seconds × number of runs per term.
 
-For a teacher sorting photos weekly (24 runs per term), the cache saves approximately 30 minutes of idle waiting per term.
+For a teacher sorting photos every week (24 runs per term), the cache saves about 30 minutes of waiting per term.
 
 ### 6.6 Download-Friendly Architecture
 
-The Windows installer (`KinderSortLiteSetup.exe`) bundles all dependencies into a single executable. The teacher never needs to:
+The Windows installer (`KinderSortLiteSetup.exe`) bundles everything into one file. The teacher never has to:
 - Install Python
 - Run `pip install`
 - Configure environment variables
 - Download model files separately (models are bundled or downloaded automatically on first use)
 
-The bundled executable size is larger (~150 MB due to dlib and OpenCV DLLs) but eliminates the requirement for internet access or technical knowledge.
+The bundled executable is big (~150 MB because of dlib and OpenCV DLLs) but it means you don't need internet or technical knowledge to get it running.
 
 ### 6.7 Disk I/O Optimisation
 
 - Sequential file access: `collect_event_images()` returns a sorted list, ensuring predictable read patterns rather than random filesystem access.
-- Copy, not move: `shutil.copy2()` preserves filesystem metadata but requires additional I/O compared to `shutil.move()`. This trade-off is intentional: data safety over performance.
-- No database: All state management uses the filesystem (folder structure, JSON cache, text log). This eliminates dependency on database engines and makes the system transparent to inspect.
+- Copy, not move: `shutil.copy2()` preserves filesystem metadata but costs more I/O than `shutil.move()`. I went with copy deliberately — data safety matters more than speed here.
+- No database: All state management uses the filesystem (folder structure, JSON cache, text log). No database engine to install, and anyone can inspect what's happening just by looking at the files.
 
 ### 6.8 Cross-Platform Considerations
 
-While the current release targets Windows (the dominant platform in Malaysian schools), the codebase is cross-platform compatible:
+While the current release targets Windows (what most Malaysian schools use), the code is cross-platform underneath:
 - `pathlib.Path` for all filesystem operations (works on Windows, macOS, Linux)
 - `tkinter` GUI (bundled with Python on all platforms)
 - `opencv-python-headless` and `face_recognition` are cross-platform
@@ -707,7 +707,7 @@ The original KinderSort was just a raw .exe on GitHub. It worked, but for a non-
 - No Start Menu integration, desktop shortcut, or uninstaller
 - No version information visible in "Programs and Features"
 
-KinderSort Lite addresses these with a professional Inno Setup installer.
+KinderSort Lite fixes these with a proper Inno Setup installer.
 
 ### 7.2 Inno Setup Configuration Analysis
 
@@ -720,7 +720,7 @@ The `installer/installer.iss` script configures a modern Windows installer:
 #define MyAppURL "https://github.com/lerlerchan/KinderSort"
 ```
 
-Key configuration choices:
+Key choices I made in the configuration:
 
 | Setting | Value | Rationale |
 |---|---|---|
@@ -746,15 +746,15 @@ The executable bundled by the installer is built with PyInstaller:
 pyinstaller --onefile --windowed --name "KinderSortLite" main_lite.py
 ```
 
-Build considerations:
-- `--onefile`: Single executable simplifies distribution and installation
-- `--windowed`: Suppresses terminal window (appropriate for GUI applications; trade-off: error messages must be caught and displayed in dialogs)
-- `--add-data`: Model files (dlib shape predictor, face recognition models) must be explicitly included
-- `--hidden-import`: `sklearn`, `scipy`, and other dlib dependencies may need explicit import declarations
+Things to watch out for during the build:
+- `--onefile`: Single executable is easier to distribute and install.
+- `--windowed`: Hides the terminal window (right call for a GUI app, but it means any error messages have to be caught and shown in dialogs instead).
+- `--add-data`: Model files (dlib shape predictor, face recognition models) must be explicitly included or they won't ship with the .exe.
+- `--hidden-import`: `sklearn`, `scipy`, and other dlib dependencies sometimes need explicit import declarations — PyInstaller doesn't always detect them.
 
 ### 7.4 Release Workflow
 
-The complete release workflow is:
+Here's the full release workflow I followed:
 
 1. Build executable: `pyinstaller KinderSortLite.spec`
 2. Verify: Test on clean Windows VM without Python
@@ -853,7 +853,7 @@ I designed the evaluator to give me numbers I can actually trust and reproduce. 
 
 ### 8.4 Continuous Integration Potential
 
-The evaluation framework is designed to be runnable in CI/CD:
+I set up the evaluation framework so it could run in CI/CD:
 
 ```yaml
 # .github/workflows/evaluate.yml
@@ -864,7 +864,7 @@ The evaluation framework is designed to be runnable in CI/CD:
       --ground-truth ./ci_test_data/ground_truth.json
 ```
 
-This would enable automated accuracy regression detection on every commit.
+That would catch accuracy regressions automatically on every commit.
 
 ### 8.5 Known Limitations and Test Gaps
 
@@ -899,7 +899,7 @@ c371905 lerlerchan         2026-03-27 v1.1: add timer UI and improve recognition
 ... (additional commits by lerlerchan)
 ```
 
-The single comprehensive commit for KinderSort Lite reflects a focused development sprint producing 9 changed files with 2,042 insertions. All contributions preserve the original MIT License and credit the original author.
+I made one big commit for KinderSort Lite — 9 changed files, 2,042 lines added. It was a focused sprint. Everything keeps the original MIT License and credits lerlerchan.
 
 ### 9.3 Contribution Breakdown
 
@@ -924,7 +924,7 @@ Semantic Versioning: Major version bump (1.x → 2.0) reflects the significant a
 
 ### 9.5 Open-Source Ethics
 
-The project respects the original MIT License by:
+I kept the project MIT-licensed. Here's what that meant in practice:
 - Preserving the original copyright notice in `LICENSE.txt`
 - Maintaining attribution to lerlerchan in documentation and GUI
 - Adding rather than replacing functionality (the original `main.py` and `sorter.py` remain in the repository)
@@ -969,7 +969,7 @@ Stuff I'd love to see someone else tackle (or me, if I find the time):
    - Colour contrast ratios (current blue-on-white scheme may need adjustment)
    - Font size options for visually impaired teachers
 
-7. Consent management integration: Develop an optional module that tracks which children have parental consent for photographic documentation. Children without consent would be automatically excluded from sorting — a technical enforcement of legal requirements.
+7. Consent management integration: Develop an optional module that tracks which children have parental consent for photographic documentation. Children without consent would be automatically excluded from sorting — the software would enforce what schools are legally supposed to do anyway.
 
 8. Encryption at rest: Implement optional AES-256 encryption for the encoding cache to protect biometric templates if the teacher's computer is compromised. Currently, cached encodings are stored as plain JSON; while not reversible to face images, they are biometric data under GDPR.
 
@@ -977,7 +977,7 @@ Stuff I'd love to see someone else tackle (or me, if I find the time):
 
 9. Multi-modal identity verification: Explore combining face recognition with additional signals (clothing colour consistency across event photographs, temporal proximity clustering) to improve accuracy without additional privacy cost.
 
-10. Federated benchmark dataset: Collaborate with Malaysian ECE institutions to create a consented, anonymised benchmark dataset for children's face recognition. This would enable rigorous, demographically representative accuracy evaluation and contribute to the global research community's understanding of face recognition on paediatric populations.
+10. Federated benchmark dataset: Collaborate with Malaysian ECE institutions to create a consented, anonymised benchmark dataset for children's face recognition. That would let us do proper, demographically representative accuracy testing — and it might actually help researchers understand how face recognition works on kids' faces, which nobody seems to study much.
 
 11. Policy advocacy: This could be a useful case study for Malaysian edtech policy — proof that privacy-preserving AI tools for schools are actually buildable, not just theoretical.
 
@@ -1029,13 +1029,13 @@ The limits of technical solutions to social problems:
 
 Face recognition is known to be worse for some demographic groups than others. CLAHE and ensemble detection help at the margins, but they're bandaids on a bigger problem: the training data is mostly adult Caucasian faces, and I'm applying it to Malaysian kindergarteners. You can't preprocess your way out of that. So I'm recommending a proper fairness audit rather than pretending this is solved.
 
-This reflects a broader lesson: ethical software engineering requires knowing when a problem is technical (solvable with better algorithms) versus structural (requiring dataset curation, policy change, or societal intervention).
+Here's the broader lesson I took from this: ethical software engineering means knowing when a problem is technical (solvable with better algorithms) versus structural (needing dataset curation, policy change, or societal intervention). You can't always code your way out of ethics problems.
 
 The responsibility of open-source tool creators:
 
 Here's something that kept me up at night: once this is out there, I can't control how people use it. Someone could repurpose it for surveillance or attendance tracking — stuff it was never meant for. The MIT license doesn't stop them. I went back and forth on this, and in the end I stuck with MIT because it maximises adoption by schools that genuinely need the tool. But I tried to make misuse harder by keeping it fully offline, with no database, no networking code, and clear documentation about what it's for.
 
-This tension between openness and responsibility is inherent in open-source ethics. The project's response is to:
+Open-source means you give up control, and that's both the point and the problem. Here's how I tried to handle it:
 1. Document the intended use case prominently
 2. Design the software to make misuse difficult (offline-only, no database, no networking code)
 3. Include ethical affirmations in the GUI
