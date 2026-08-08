@@ -1,0 +1,3 @@
+2026-08-08 22:24:54 [WARNING] No face detected in reference for Student_A (Student_A.jpg) — REJECTED
+2026-08-08 22:24:54 [WARNING] No face detected in reference for Student_B (Student_B.jpg) — REJECTED
+2026-08-08 22:24:54 [WARNING] No face detected in reference for Student_C (Student_C.jpg) — REJECTED

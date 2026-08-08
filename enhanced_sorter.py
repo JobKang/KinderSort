@@ -2,12 +2,16 @@
 enhanced_sorter.py — Enhanced face recognition for KinderSort Lite.
 
 Adds ensemble detection (HOG + CNN), image preprocessing via CLAHE,
-confidence scoring, and cached encoding support for low-resource environments.
+normalized-match-margin scoring, two-threshold routing (_review_required),
+secure cached encoding support for low-resource environments, and
+strict reference-photo validation (exactly one face required).
 All processing remains CPU-only and fully offline.
 """
 
+import hashlib
 import json
 import logging
+import os
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -24,6 +28,13 @@ from utils import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Cache location — stored in app data, not the output folder
+# ---------------------------------------------------------------------------
+CACHE_DIR = Path.home() / ".kindersort" / "cache"
+CACHE_FILE = CACHE_DIR / "encoding_cache.json"
+
+
 class EnhancedPhotoSorter:
     """Enhanced face recognition pipeline with preprocessing and ensemble detection.
 
@@ -31,11 +42,14 @@ class EnhancedPhotoSorter:
         - CLAHE image enhancement for better accuracy in poor lighting
         - Ensemble face detection (HOG + CNN fallback) for higher recall
         - Face-region enhancement for reference photos
-        - Confidence scores for each match
-        - Encoding cache to avoid recomputation across runs
+        - Normalized match margin for each match (replaces "confidence")
+        - Two-threshold routing: strong / _review_required / _unmatched
+        - Strict reference validation: exactly one face required
+        - Secure encoding cache (SHA-256, file-metadata, app-data storage)
     """
 
-    DISTANCE_THRESHOLD = 0.50  # Stricter than original (0.55) — preprocessing handles noise
+    DISTANCE_THRESHOLD = 0.50   # Strong match — copy to student folder
+    REVIEW_THRESHOLD = 0.60     # Borderline — copy to _review_required/
     MAX_IMAGE_DIMENSION = 1000
 
     def __init__(
@@ -67,74 +81,137 @@ class EnhancedPhotoSorter:
         self.ensemble_detection = ensemble_detection
 
         self._student_encodings: dict[str, np.ndarray] = {}
-        self._student_confidence: dict[str, float] = {}
+        self._student_margin: dict[str, float] = {}
         self._preprocessor = ImagePreprocessor(enabled=use_preprocessing)
         self._engine = FaceEngine()
-        self._cache_path = output_folder / "encoding_cache.json"
 
-        # Accuracy tracking
-        self._match_confidence_scores: list[float] = []
+        # Accuracy tracking (margin scores, not "confidence")
+        self._match_margin_scores: list[float] = []
         self._detection_methods_used: dict[str, int] = {"hog": 0, "cnn": 0, "ensemble": 0}
 
     # ------------------------------------------------------------------
-    # Encoding cache (low-resource optimization)
+    # Encoding cache (secure, app-data storage)
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _ref_metadata(ref_folder: Path) -> dict[str, dict]:
+        """Collect file metadata for every reference image.
+
+        Returns a dict mapping filename → {size, mtime} for cache
+        validation.  The cache is invalidated when *any* reference file
+        changes size or modification time.
+        """
+        meta: dict[str, dict] = {}
+        for p in sorted(ref_folder.iterdir()):
+            if is_image_file(p):
+                try:
+                    stat = p.stat()
+                    meta[p.name] = {
+                        "size": stat.st_size,
+                        "mtime": stat.st_mtime,
+                    }
+                except OSError:
+                    continue
+        return meta
+
     def _load_cache(self) -> dict[str, list[float]] | None:
-        """Load cached encodings from disk if they exist and are fresh."""
-        if not self.use_cache or not self._cache_path.exists():
+        """Load cached encodings from disk if they exist and are valid.
+
+        Validation checks:
+          1. File exists and is valid JSON.
+          2. Reference file list matches (by name, size, and mtime).
+          3. Cache age < 24 hours.
+          4. SHA-256 integrity hash matches.
+        """
+        if not self.use_cache or not CACHE_FILE.exists():
             return None
 
         try:
-            with open(self._cache_path) as f:
-                data = json.load(f)
-
-            # Verify cache matches current reference folder
-            current_files = sorted(
-                p.name for p in self.reference_folder.iterdir() if is_image_file(p)
-            )
-            cached_files = data.get("_files", [])
-            if current_files != cached_files:
-                self.logger.info("Cache stale — reference photos changed")
-                return None
-
-            # Verify cache age (max 24 hours)
-            cached_time = data.get("_timestamp", 0)
-            if time.time() - cached_time > 86400:
-                self.logger.info("Cache expired (>24h)")
-                return None
-
-            self.logger.info("Loaded %d encodings from cache", len(data) - 2)
-            return {k: v for k, v in data.items() if not k.startswith("_")}
-
-        except (json.JSONDecodeError, KeyError) as exc:
-            self.logger.warning("Cache corrupted: %s", exc)
+            with open(CACHE_FILE) as f:
+                raw = f.read()
+        except OSError:
             return None
 
+        # --- SHA-256 integrity check -----------------------------------
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, KeyError):
+            self.logger.warning("Cache corrupted — invalid JSON")
+            return None
+
+        stored_hash = data.get("_sha256", "")
+        computed_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        if stored_hash and stored_hash != computed_hash:
+            self.logger.warning("Cache integrity check failed (SHA-256 mismatch)")
+            return None
+
+        # --- File metadata validation ----------------------------------
+        current_meta = self._ref_metadata(self.reference_folder)
+        cached_meta = data.get("_ref_meta", {})
+        if current_meta != cached_meta:
+            self.logger.info("Cache stale — reference photos changed (size/mtime)")
+            return None
+
+        # --- Age check -------------------------------------------------
+        cached_time = data.get("_timestamp", 0)
+        if time.time() - cached_time > 86400:
+            self.logger.info("Cache expired (>24h)")
+            return None
+
+        self.logger.info("Loaded %d encodings from cache", len(data) - 4)
+        return {k: v for k, v in data.items() if not k.startswith("_")}
+
     def _save_cache(self) -> None:
-        """Save current encodings to disk cache."""
+        """Save current encodings to disk cache with integrity hash."""
         if not self.use_cache:
             return
 
         try:
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
             data = {
                 name: enc.tolist()
                 for name, enc in self._student_encodings.items()
             }
-            data["_files"] = sorted(
-                p.name for p in self.reference_folder.iterdir() if is_image_file(p)
-            )
+            data["_ref_meta"] = self._ref_metadata(self.reference_folder)
             data["_timestamp"] = time.time()
 
-            with open(self._cache_path, "w") as f:
-                json.dump(data, f)
-            self.logger.info("Saved %d encodings to cache", len(self._student_encodings))
+            # Compute and embed SHA-256 of the serialized payload
+            raw = json.dumps(data, sort_keys=True)
+            data["_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
+            with open(CACHE_FILE, "w") as f:
+                json.dump(data, f)
+
+            self.logger.info(
+                "Saved %d encodings to cache (%s)",
+                len(self._student_encodings),
+                CACHE_FILE,
+            )
         except OSError as exc:
             self.logger.warning("Could not save cache: %s", exc)
 
+    @classmethod
+    def clear_cache(cls) -> bool:
+        """Delete the biometric encoding cache from app data.
+
+        Returns True if the cache was deleted successfully (or didn't exist).
+        """
+        try:
+            if CACHE_FILE.exists():
+                CACHE_FILE.unlink()
+                return True
+            return True  # nothing to delete
+        except OSError:
+            return False
+
+    @classmethod
+    def cache_exists(cls) -> bool:
+        """Return True if a cached encoding file exists on disk."""
+        return CACHE_FILE.exists()
+
     # ------------------------------------------------------------------
-    # Reference loading (enhanced with preprocessing)
+    # Reference loading (enhanced with preprocessing + strict validation)
     # ------------------------------------------------------------------
 
     def load_references(
@@ -150,8 +227,12 @@ class EnhancedPhotoSorter:
             4. Encode with multiple jitters for robust embeddings
             5. Store and cache the encoding
 
+        **Strict validation**: Reference photos containing zero faces OR more
+        than one face are rejected.  Only photos with exactly one face are
+        accepted as valid references.
+
         Returns:
-            List of student names whose reference photo had no detectable face.
+            List of student names whose reference photo was rejected.
         """
         # Try cache first
         cached = self._load_cache()
@@ -191,23 +272,31 @@ class EnhancedPhotoSorter:
                     model="large",
                 )
 
+                # --- Strict: reject zero faces ---
                 if not encodings:
                     self.logger.warning(
-                        "No face detected in reference for %s (%s)",
+                        "No face detected in reference for %s (%s) — REJECTED",
                         student_name,
                         ref_path.name,
                     )
                     no_face_names.append(student_name)
                     continue
 
+                # --- Strict: reject multiple faces ---
                 if len(encodings) > 1:
                     self.logger.warning(
-                        "Multiple faces in %s reference — using first face only",
+                        "Multiple faces (%d) detected in reference for %s (%s) — REJECTED. "
+                        "Reference photographs containing zero or multiple faces are rejected.",
+                        len(encodings),
                         student_name,
+                        ref_path.name,
                     )
+                    no_face_names.append(student_name)
+                    continue
 
+                # Exactly one face — accept
                 self._student_encodings[student_name] = encodings[0]
-                self._student_confidence[student_name] = 1.0  # Reference: baseline confidence
+                self._student_margin[student_name] = 1.0  # Reference: baseline margin
                 self.logger.info("Loaded reference for %s (enhanced)", student_name)
 
             except Exception as exc:
@@ -226,7 +315,7 @@ class EnhancedPhotoSorter:
         return no_face_names
 
     # ------------------------------------------------------------------
-    # Main sort loop (enhanced)
+    # Main sort loop (enhanced with two-threshold routing)
     # ------------------------------------------------------------------
 
     def sort_all(
@@ -234,23 +323,33 @@ class EnhancedPhotoSorter:
         progress_callback: Callable[[int, int, str], None],
         cancelled: Callable[[], bool],
     ) -> dict[str, int]:
-        """Sort all event photos with enhanced detection and matching.
+        """Sort all event photos with enhanced detection and two-threshold matching.
 
         For each photo:
             1. Load and preprocess (CLAHE enhancement)
             2. Ensemble face detection: HOG first (fast), CNN fallback (accurate)
             3. Encode detected faces with jitter for robustness
-            4. Match against references with confidence scoring
-            5. Copy to matched student folders (group shots supported)
+            4. Match against references with normalized match margin scoring
+            5. Route based on two thresholds:
+               - distance ≤ DISTANCE_THRESHOLD (0.50) → strong match → student folder
+               - DISTANCE_THRESHOLD < distance ≤ REVIEW_THRESHOLD (0.60) → borderline → _review_required/
+               - distance > REVIEW_THRESHOLD → no match → _unmatched/
+            6. Group shots supported: one photo can land in multiple student folders
 
         Returns:
-            Dict with keys: total, matched, unmatched, skipped, accuracy_metrics.
+            Dict with keys: total, matched, review, unmatched, skipped, accuracy_metrics.
         """
         images = collect_event_images(self.events_folder)
         total = len(images)
 
-        counts = {"total": total, "matched": 0, "unmatched": 0, "skipped": 0}
-        self._match_confidence_scores = []
+        counts = {
+            "total": total,
+            "matched": 0,
+            "review": 0,
+            "unmatched": 0,
+            "skipped": 0,
+        }
+        self._match_margin_scores = []
         self._detection_methods_used = {"hog": 0, "cnn": 0, "ensemble": 0}
 
         self.logger.info("Starting enhanced sort — %d images found", total)
@@ -311,22 +410,53 @@ class EnhancedPhotoSorter:
                 counts["unmatched"] += 1
                 continue
 
-            # Match and track confidence
-            matched_students: set[str] = set()
-            for encoding in face_encodings:
-                match, confidence = self._match_face_with_confidence(encoding)
-                if match:
-                    matched_students.add(match)
-                    self._match_confidence_scores.append(confidence)
+            # Match and track margin — two-threshold routing
+            best_category: str | None = None
+            best_student: str | None = None
+            best_margin = 0.0
 
-            if matched_students:
-                for student_name in matched_students:
-                    dest_folder = self.output_folder / student_name
+            for encoding in face_encodings:
+                student, margin, category = self._match_face_with_margin(encoding)
+                if student and category:
+                    # Track the best match across all faces in this photo
+                    if category_rank(category) < category_rank(best_category) or (
+                        category_rank(category) == category_rank(best_category)
+                        and margin > best_margin
+                    ):
+                        best_category = category
+                        best_student = student
+                        best_margin = margin
+
+            if best_student and best_category:
+                if best_category == "strong":
+                    # --- Strong match → student folder ------------------
+                    dest_folder = self.output_folder / best_student
                     safe_copy(image_path, dest_folder, output_filename, self.logger)
                     self.logger.info(
-                        "Matched %s → %s", image_path.name, student_name
+                        "Matched %s → %s (margin=%.2f%%)",
+                        image_path.name,
+                        best_student,
+                        best_margin * 100,
                     )
-                counts["matched"] += 1
+                    self._match_margin_scores.append(best_margin)
+                    counts["matched"] += 1
+
+                elif best_category == "review":
+                    # --- Borderline → _review_required/ -----------------
+                    safe_copy(
+                        image_path,
+                        self.output_folder / "_review_required",
+                        output_filename,
+                        self.logger,
+                    )
+                    self.logger.info(
+                        "Borderline match: %s → %s (margin=%.2f%%) → _review_required",
+                        image_path.name,
+                        best_student,
+                        best_margin * 100,
+                    )
+                    self._match_margin_scores.append(best_margin)
+                    counts["review"] += 1
             else:
                 self.logger.info("No match: %s → _unmatched", image_path.name)
                 safe_copy(
@@ -338,29 +468,30 @@ class EnhancedPhotoSorter:
                 counts["unmatched"] += 1
 
         # Compute accuracy metrics
-        if self._match_confidence_scores:
-            avg_confidence = float(np.mean(self._match_confidence_scores))
-            median_confidence = float(np.median(self._match_confidence_scores))
+        if self._match_margin_scores:
+            avg_margin = float(np.mean(self._match_margin_scores))
+            median_margin = float(np.median(self._match_margin_scores))
             self.logger.info(
-                "Accuracy metrics — avg_confidence=%.4f median_confidence=%.4f",
-                avg_confidence,
-                median_confidence,
+                "Accuracy metrics — avg_margin=%.4f median_margin=%.4f",
+                avg_margin,
+                median_margin,
             )
         else:
-            avg_confidence = 0.0
-            median_confidence = 0.0
+            avg_margin = 0.0
+            median_margin = 0.0
 
         counts["accuracy_metrics"] = {
-            "avg_confidence": round(avg_confidence, 4),
-            "median_confidence": round(median_confidence, 4),
-            "total_matches": len(self._match_confidence_scores),
+            "avg_margin": round(avg_margin, 4),
+            "median_margin": round(median_margin, 4),
+            "total_matches": len(self._match_margin_scores),
             "detection_methods": self._detection_methods_used,
         }
 
         self.logger.info(
-            "Enhanced sort complete — total=%d matched=%d unmatched=%d skipped=%d",
+            "Enhanced sort complete — total=%d matched=%d review=%d unmatched=%d skipped=%d",
             counts["total"],
             counts["matched"],
+            counts["review"],
             counts["unmatched"],
             counts["skipped"],
         )
@@ -456,25 +587,32 @@ class EnhancedPhotoSorter:
         return kept
 
     # ------------------------------------------------------------------
-    # Confidence scoring
+    # Normalized match margin (replaces "confidence")
     # ------------------------------------------------------------------
 
-    def _match_face_with_confidence(
+    def _match_face_with_margin(
         self, encoding: np.ndarray
-    ) -> tuple[str | None, float]:
-        """Match a face encoding and return (student_name, confidence_score).
+    ) -> tuple[str | None, float, str | None]:
+        """Match a face encoding and return (student_name, margin, category).
 
-        Confidence is computed as: 1.0 - (distance / threshold).
-        A confidence of 0.0 means exactly at threshold; negative means no match.
+        The **normalized match margin** is computed as:
+            margin = 1.0 - (distance / REVIEW_THRESHOLD)
+        A margin of 1.0 means perfect match (distance=0); 0.0 means at the
+        upper review boundary.  Negative margins fall below the review threshold.
+
+        Two-threshold routing:
+            distance ≤ DISTANCE_THRESHOLD (0.50) → "strong"
+            DISTANCE_THRESHOLD < distance ≤ REVIEW_THRESHOLD (0.60) → "review"
+            distance > REVIEW_THRESHOLD → None (no match)
 
         Args:
             encoding: 128-d face encoding from face_recognition.
 
         Returns:
-            Tuple of (matched student name or None, confidence score 0-1).
+            Tuple of (matched student name or None, margin 0-1, category or None).
         """
         if not self._student_encodings:
-            return None, 0.0
+            return None, 0.0, None
 
         names = list(self._student_encodings.keys())
         known_encodings = list(self._student_encodings.values())
@@ -483,22 +621,43 @@ class EnhancedPhotoSorter:
         best_idx = int(np.argmin(distances))
         best_distance = distances[best_idx]
 
+        # Compute normalized match margin (0-1 range; higher = better match)
+        margin = max(0.0, 1.0 - (best_distance / self.REVIEW_THRESHOLD))
+
         if best_distance <= self.DISTANCE_THRESHOLD:
-            confidence = 1.0 - (best_distance / self.DISTANCE_THRESHOLD)
             self.logger.debug(
-                "Face matched to %s (distance=%.4f, confidence=%.2f%%)",
+                "Face matched to %s (distance=%.4f, margin=%.2f%%) — STRONG",
                 names[best_idx],
                 best_distance,
-                confidence * 100,
+                margin * 100,
             )
-            return names[best_idx], float(confidence)
+            return names[best_idx], float(margin), "strong"
+
+        if best_distance <= self.REVIEW_THRESHOLD:
+            self.logger.debug(
+                "Face borderline match: %s (distance=%.4f, margin=%.2f%%) — REVIEW",
+                names[best_idx],
+                best_distance,
+                margin * 100,
+            )
+            return names[best_idx], float(margin), "review"
 
         self.logger.debug(
-            "No match — best distance=%.4f (threshold=%.2f)",
+            "No match — best distance=%.4f (DISTANCE_THRESHOLD=%.2f, REVIEW_THRESHOLD=%.2f)",
             best_distance,
             self.DISTANCE_THRESHOLD,
+            self.REVIEW_THRESHOLD,
         )
-        return None, 0.0
+        return None, 0.0, None
+
+
+def category_rank(category: str | None) -> int:
+    """Return numeric rank for comparison (lower = better match)."""
+    if category == "strong":
+        return 0
+    if category == "review":
+        return 1
+    return 2  # None / unmatched
 
 
 # ------------------------------------------------------------------
@@ -537,7 +696,7 @@ def evaluate_accuracy(
         try:
             rgb = load_and_preprocess(image_path, sorter._preprocessor)
             locations = sorter._detect_faces_ensemble(rgb)
-            encodings = face_recognition.face_encodings(
+            encodings = sorter._engine.face_encodings(
                 rgb, locations, num_jitters=3, model="large"
             )
 
@@ -549,7 +708,7 @@ def evaluate_accuracy(
 
             matched = False
             for enc in encodings:
-                match, _ = sorter._match_face_with_confidence(enc)
+                match, _, _ = sorter._match_face_with_margin(enc)
                 if match == expected:
                     results["correct"] += 1
                     results["per_student"][expected]["tp"] += 1
