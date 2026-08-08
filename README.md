@@ -143,3 +143,24 @@ Build Windows executable:
 pyinstaller --onefile --windowed --name "KinderSort" main.py
 # Output: dist/KinderSort.exe
 ```
+
+## Human Review and Recognition Limitations
+
+KinderSort Lite assists teachers in organising event photographs, but face-recognition results may contain incorrect or missed matches. Teachers must review all sorted folders before photographs are distributed to parents or guardians.
+
+The displayed match score is a normalised facial-distance indicator. It is not a calibrated probability and does not guarantee that the identified student is correct. A higher score only indicates that the detected face is more similar to the selected reference image.
+
+### Recommended Review Procedure
+
+1. Review every sorted student folder before distributing photographs.
+2. Pay additional attention to photographs with low match scores.
+3. Check the `_unmatched` folder and sort those photographs manually.
+4. Confirm that group photographs were copied only to the correct student folders.
+5. Replace unclear reference images with well-lit, front-facing photographs.
+6. Obtain appropriate parental or guardian consent before processing children's photographs.
+
+### Privacy Notice
+
+Photograph recognition and sorting are performed locally on the user's computer. Student photographs and facial encodings are not uploaded to an external face-recognition service. If an optional model is not included with the installer, a one-time model download may be required.
+
+Users are responsible for protecting the output folders, deleting information when it is no longer required, and following their school's privacy and data-retention procedures.
