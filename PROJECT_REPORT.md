@@ -547,43 +547,45 @@ Children cannot legally consent to biometric processing. Consent must come from 
 
 ### 5.3 Professional Codes of Ethics: ACM/IEEE-CS Software Engineering Code
 
-The ACM/IEEE Software Engineering Code of Ethics (v5.2) has eight principles. Here's how KinderSort Lite measures up against each one:
+The ACM/IEEE Software Engineering Code of Ethics (v5.2) lays out eight principles. I went through each one and checked how KinderSort Lite stacks up. Some of these were easy to satisfy — the offline architecture basically does the privacy work for you. Others required more deliberate choices.
 
-Principle 1: PUBLIC — Software engineers shall act consistently with the public interest.
+**Principle 1: PUBLIC — Act consistently with the public interest.**
 
-- 1.03: "Approve software only if they have a well-founded belief that it is safe, meets specifications, passes appropriate tests, and does not diminish quality of life, diminish privacy or harm the environment." KinderSort Lite's evaluation framework, test data generator, and documented accuracy metrics provide the well-founded belief required. Privacy is enhanced, not diminished, by keeping data offline.
-- 1.04: "Disclose to appropriate persons or authorities any actual or potential danger to the user, the public, or the environment." The confidence scoring system and `_unmatched/` folder serve as disclosure mechanisms for potential false matches.
+- 1.03 says you should only approve software if you have good reason to believe it's safe, tested, and doesn't harm privacy or quality of life. The evaluation framework I built, along with the test data generator and documented accuracy metrics, gives me that confidence. Privacy is better, not worse, because nothing leaves the device.
+- 1.04 requires disclosing potential dangers to users or the public. The confidence scoring and the `_unmatched/` folder work as built-in disclosure — they tell the teacher when the system isn't sure about a match. It's not a formal disclosure process, but for a classroom tool, I think it's proportional.
 
-Principle 2: CLIENT AND EMPLOYER — Software engineers shall act in a manner that is in the best interests of their client and employer, consistent with the public interest.
+**Principle 2: CLIENT AND EMPLOYER — Act in the client's best interest, consistent with public interest.**
 
-- 2.02: "Not knowingly use software that is obtained or retained either illegally or unethically." KinderSort Lite is built on the MIT-licensed original project with proper attribution. Model files are downloaded from official OpenCV repositories.
-- 2.05: "Keep private any information gained in their professional work, where such confidentiality is consistent with the public interest and the law." The offline architecture ensures no information leaves the client's device.
+- 2.02 says don't knowingly use software obtained illegally or unethically. KinderSort Lite is built on the original MIT-licensed project with clear attribution. The model files come from official OpenCV repositories.
+- 2.05 requires keeping client information private. The whole offline thing handles this. There's literally no way for data to leave the teacher's computer because there's no networking code. I didn't even have to try to be compliant — the architecture enforces it.
 
-Principle 3: PRODUCT — Software engineers shall ensure that their products and related modifications meet the highest professional standards possible.
+**Principle 3: PRODUCT — Meet the highest professional standards possible.**
 
-- 3.01: "Strive for high quality, acceptable cost, and a reasonable schedule." The enhanced sorting pipeline with CLAHE preprocessing and ensemble detection improves quality over the baseline. The project is free and open-source (zero cost). Development was completed within the academic term schedule.
-- 3.10: "Ensure adequate testing, debugging, and review of software." The evaluation framework, test data generator, and comprehensive logging constitute adequate testing infrastructure.
-- 3.12: "Work to develop software and related documents that respect the privacy of those who will be affected by that software." The entire architecture is designed around privacy preservation.
+- 3.01 pushes for high quality at acceptable cost on a reasonable schedule. The CLAHE preprocessing and ensemble detection improve quality over the baseline. The tool is free and open source. Development happened within the academic term.
+- 3.10 says to ensure adequate testing, debugging, and review. The evaluation framework, test data generator, and logging system provide that infrastructure.
+- 3.12 says to develop software that respects the privacy of the people affected by it. Privacy preservation is the foundation of the whole architecture. I didn't bolt it on at the end — the offline requirement was there from day one.
 
-Principle 4: JUDGMENT — Software engineers shall maintain integrity and independence in their professional judgment.
+**Principle 4: JUDGMENT — Maintain integrity and independence in professional judgment.**
 
-- 4.01: "Temper all technical judgments by the need to support and maintain human values." The decision to prioritise accuracy over speed (ensemble detection) and transparency over simplicity (confidence scoring) reflects this tempering.
+- 4.01 says to temper technical judgments by supporting human values. Choosing accuracy over speed (ensemble detection) and transparency over simplicity (confidence scoring) reflects that trade-off. These weren't the easiest choices, but they were the right ones for the context.
 
-Principle 5: MANAGEMENT — Software engineering managers and leaders shall subscribe to and promote an ethical approach.
+**Principle 5: MANAGEMENT — Promote an ethical approach to software engineering.**
 
-- 5.07: "Assign work only after taking into account appropriate contributions of education and experience." This report documents the educational context of the project, including its development within CSIS3083 Ethics in Computing.
+- 5.07 says to assign work based on education and experience. This report documents the educational context — the project was developed within CSIS3083, and every design decision is traced back to what I learned in the course.
 
-Principle 6: PROFESSION — Software engineers shall advance the integrity and reputation of the profession.
+**Principle 6: PROFESSION — Advance the integrity and reputation of the profession.**
 
-- 6.08: "Take responsibility for detecting, correcting, and reporting errors in software." The evaluation framework, logging system, and GitHub issue tracker provide error detection and reporting infrastructure.
+- 6.08 says to take responsibility for detecting, correcting, and reporting errors. The evaluation framework, logging, and GitHub issue tracker create the infrastructure for that. It's not perfect, but the mechanisms are in place.
 
-Principle 7: COLLEAGUES — Software engineers shall be fair to and supportive of their colleagues.
+**Principle 7: COLLEAGUES — Be fair to and supportive of colleagues.**
 
-- 7.03: "Credit fully the work of others and refrain from taking undue credit." The original KinderSort by lerlerchan is credited throughout this report, in the codebase (fork attribution), and in the GUI.
+- 7.03 says to fully credit others' work and not take undue credit. The original KinderSort by lerlerchan is credited throughout this report, in the codebase as a fork, and in the GUI itself. I built on their work — I didn't pretend it was mine.
 
-Principle 8: SELF — Software engineers shall participate in lifelong learning and promote an ethical approach.
+**Principle 8: SELF — Participate in lifelong learning and promote ethical practice.**
 
-- 8.01: "Further their knowledge of developments in the analysis, specification, design, development, maintenance, and testing of software." This project demonstrates engagement with computer vision research, ethical AI design, and software packaging practices.
+- 8.01 says to keep learning about developments in software analysis, design, development, and testing. This project got me into computer vision research, ethical AI design, and software packaging — areas I hadn't touched before. The fact that I'm writing this reflection at all is evidence of engagement with the principle.
+
+Looking back at all eight principles, the ones that required the most thought were 1.03 (the safety/quality bar) and 3.12 (privacy by design). The ones that came almost for free were 2.02 (legal use) and 2.05 (confidentiality) — those were inherited from the original project's MIT license and offline architecture. I think that's actually a good sign: when ethics comes baked into the architecture rather than added as an afterthought, compliance stops feeling like extra work.
 
 ### 5.4 Legal Compliance: Malaysian PDPA 2010
 
