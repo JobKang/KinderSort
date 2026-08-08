@@ -58,7 +58,7 @@ What I set out to do:
 
 1. Make the face recognition better — add CLAHE preprocessing for bad lighting, use both HOG and CNN detectors together, and add confidence scores so you actually know how reliable each match is.
 
-2. Keep it ethical — fully offline, clear confidence metrics, user-controlled options, and a log of everything the system does. No mysteries, no data leaving the device.
+2. Keep it ethical — runs without internet for photograph processing, clear confidence metrics, user-controlled options, and a log of everything the system does. No mysteries, no data leaving the device.
 
 3. Make it run on anything — multiple face detection backends, encoding cache, and fallbacks so it doesn't just crash if a library is missing. dlib not installed? Fine, we drop to OpenCV. OpenCV's model not downloaded? Fine, Haar cascades are always there.
 
@@ -173,7 +173,7 @@ I extended the original GUI class with a few things:
 - Enhancement toggle checkboxes: Users can independently enable/disable preprocessing, ensemble detection, and encoding cache via `tkinter.Checkbutton` widgets bound to `BooleanVar` instances. This matters ethically — teachers can understand and control which AI features are active. It's not a black box.
 - Expanded summary display: The completion summary includes accuracy metrics (average/median confidence, total matches), active enhancements list, and an ethical design affirmation section.
 - Larger minimum window: 580×550 (vs. 500×400 in v1.1) to accommodate the additional options panel. tkinter's layout is... well, it's tkinter. But it works.
-- Ethical indicators: The title bar reads "KinderSort Lite — Ethical AI Photo Organiser", and the summary includes a "✓ 100% offline — no data leaves the device" section. Maybe a bit on the nose, but I wanted it to be impossible to ignore.
+- Ethical indicators: The title bar reads "KinderSort Lite — Ethical AI Photo Organiser", and the summary includes a "✓ all photograph processing is local — no data leaves the device" section. Maybe a bit on the nose, but I wanted it to be impossible to ignore.
 
 ### 2.3 Data Flow
 
@@ -478,7 +478,7 @@ The maxim I'm testing: "Process children's facial photographs through automated 
 
 Universalisation test: Can this be universalised?
 - Without privacy safeguards: No. If every school worldwide processed children's biometric data through automated face recognition without consent, transparency, or security, you'd have a surveillance infrastructure incompatible with human dignity. Children become data subjects from age 3.
-- With privacy safeguards: Qualified yes. If all implementations are fully offline, transparent, user-controlled, and subject to human review, the practice could be universalised. This is exactly what KinderSort Lite is designed to be.
+- With privacy safeguards: Qualified yes. If all implementations are runs without internet for photograph processing, transparent, user-controlled, and subject to human review, the practice could be universalised. This is exactly what KinderSort Lite is designed to be.
 
 Humanity formulation: Children's facial photographs aren't just data points — they're representations of actual persons with inherent dignity. KinderSort Lite respects this by:
 - Never transmitting data: The offline architecture ensures photos never leave the teacher's computer. No third party ever "uses" them.
@@ -499,7 +499,7 @@ Here's how I tried to embody specific virtues in the design:
 
 Honesty (truthfulness):
 - The system doesn't claim AI infallibility. Confidence scores and the `_unmatched/` folder transparently communicate uncertainty.
-- The GUI's "Ethical Design" indicators are truthful — the system genuinely is 100% offline and CPU-only.
+- The GUI's "Ethical Design" indicators are truthful — the system genuinely is all photograph processing is local and CPU-only.
 - MIT License and open-source nature embody intellectual honesty about capabilities and limitations.
 
 Justice (fairness):
@@ -952,7 +952,7 @@ Stuff I'd love to see someone else tackle (or me, if I find the time):
    - Why the `_unmatched/` folder exists and how to manually sort it
    - The importance of reviewing sorted photos before sharing with parents
 
-3. Parental notification template: Provide schools with a template letter informing parents that face recognition software (fully offline, on the teacher's computer only) is used to organise photographs. This supports informed consent under PDPA.
+3. Parental notification template: Provide schools with a template letter informing parents that face recognition software (runs without internet for photograph processing, on the teacher's computer only) is used to organise photographs. This supports informed consent under PDPA.
 
 4. Antivirus whitelisting: Contact major antivirus vendors (Windows Defender, Avast, Kaspersky) to submit `KinderSortLite.exe` for false-positive review. PyInstaller-packaged executables are frequently flagged as heuristic threats.
 
@@ -1030,7 +1030,7 @@ Here's the broader lesson I took from this: ethical software engineering means k
 
 The responsibility of open-source tool creators:
 
-Here's something that kept me up at night: once this is out there, I can't control how people use it. Someone could repurpose it for surveillance or attendance tracking — stuff it was never meant for. The MIT license doesn't stop them. I went back and forth on this, and in the end I stuck with MIT because it maximises adoption by schools that genuinely need the tool. But I tried to make misuse harder by keeping it fully offline, with no database, no networking code, and clear documentation about what it's for.
+Here's something that kept me up at night: once this is out there, I can't control how people use it. Someone could repurpose it for surveillance or attendance tracking — stuff it was never meant for. The MIT license doesn't stop them. I went back and forth on this, and in the end I stuck with MIT because it maximises adoption by schools that genuinely need the tool. But I tried to make misuse harder by keeping it runs without internet for photograph processing, with no database, no networking code, and clear documentation about what it's for.
 
 Open-source means you give up control, and that's both the point and the problem. Here's how I tried to handle it:
 1. Document the intended use case prominently
