@@ -2,7 +2,8 @@
 main.py — KinderSort Lite GUI entry point.
 
 Enhanced version with preprocessing toggle, ensemble detection,
-confidence display, and accuracy metrics.
+normalized match margin display, two-threshold review system,
+strict reference validation, secure cache management, and accuracy metrics.
 """
 
 import threading
@@ -19,7 +20,7 @@ class KinderSortLiteApp(tk.Tk):
     """Main application window for KinderSort Lite — Enhanced Student Photo Organiser."""
 
     MIN_WIDTH = 580
-    MIN_HEIGHT = 550
+    MIN_HEIGHT = 600
 
     def __init__(self) -> None:
         super().__init__()
@@ -99,6 +100,43 @@ class KinderSortLiteApp(tk.Tk):
             options_frame,
             text="Cache Encodings (skips re-encoding on re-run — faster)",
             variable=self._cache_var,
+        ).pack(anchor="w")
+
+        # --- Cache management row ---------------------------------------
+        cache_frame = tk.Frame(options_frame)
+        cache_frame.pack(fill=tk.X, pady=(4, 0))
+
+        self._clear_cache_btn = tk.Button(
+            cache_frame,
+            text="🗑 Delete Biometric Cache",
+            font=("Helvetica", 9),
+            padx=8,
+            pady=2,
+            command=self._on_clear_cache,
+        )
+        self._clear_cache_btn.pack(side=tk.LEFT)
+
+        self._cache_status_label = tk.Label(
+            cache_frame,
+            text="",
+            font=("Helvetica", 8),
+            fg="#888888",
+        )
+        self._cache_status_label.pack(side=tk.LEFT, padx=(8, 0))
+
+        # Update cache status label
+        self._update_cache_status()
+
+        # Privacy notice
+        privacy_frame = tk.Frame(options_frame)
+        privacy_frame.pack(fill=tk.X, pady=(4, 0))
+        tk.Label(
+            privacy_frame,
+            text="🔒 Facial encodings are stored locally in your app data folder "
+                 "(~/.kindersort/cache/). No data ever leaves this computer.",
+            font=("Helvetica", 8),
+            fg="#888888",
+            wraplength=520,
         ).pack(anchor="w")
 
         # Buttons
@@ -186,6 +224,40 @@ class KinderSortLiteApp(tk.Tk):
         folder = filedialog.askdirectory(title="Select folder")
         if folder:
             string_var.set(folder)
+
+    def _on_clear_cache(self) -> None:
+        """Delete the biometric encoding cache from app data."""
+        if not EnhancedPhotoSorter.cache_exists():
+            messagebox.showinfo(
+                "No Cache Found",
+                "There is no biometric cache to delete.\n\n"
+                "The cache is created the first time you run a sort with "
+                "'Cache Encodings' enabled.",
+            )
+            return
+
+        confirm = messagebox.askyesno(
+            "Delete Biometric Cache",
+            "This will delete all cached facial encodings from your app data.\n\n"
+            "The cache will be regenerated on the next sort if 'Cache Encodings' "
+            "is enabled. This does NOT affect your reference photos or sorted output.\n\n"
+            "Are you sure you want to delete the cache?",
+        )
+        if confirm:
+            success = EnhancedPhotoSorter.clear_cache()
+            if success:
+                self._cache_status_label.config(text="✅ Cache deleted")
+                messagebox.showinfo("Cache Deleted", "Biometric cache has been cleared.")
+            else:
+                messagebox.showerror("Error", "Could not delete the cache file.")
+        self._update_cache_status()
+
+    def _update_cache_status(self) -> None:
+        """Update the cache status indicator."""
+        if EnhancedPhotoSorter.cache_exists():
+            self._cache_status_label.config(text="📦 Cache exists")
+        else:
+            self._cache_status_label.config(text="📭 No cache")
 
     def _on_start(self) -> None:
         ref = self._reference_var.get().strip()
@@ -301,8 +373,10 @@ class KinderSortLiteApp(tk.Tk):
     def _show_ref_warning(self, skipped_names: list[str]) -> None:
         names_str = "\n".join(f"  • {n}" for n in skipped_names)
         messagebox.showwarning(
-            "Reference photos without faces",
-            f"No face was detected in the reference photos for:\n\n{names_str}\n\n"
+            "Reference photos rejected",
+            f"The following reference photos were rejected:\n\n{names_str}\n\n"
+            "Reference photographs containing zero or multiple faces are rejected. "
+            "Each reference photo must contain exactly one clearly visible face.\n\n"
             "These students will be skipped during sorting.",
         )
 
@@ -335,19 +409,28 @@ class KinderSortLiteApp(tk.Tk):
             status,
             "",
             "═══ Results ═══",
-            f"  Total images found : {summary['total']}",
-            f"  Matched (sorted)   : {summary['matched']}",
-            f"  Unmatched          : {summary['unmatched']}",
-            f"  Skipped (errors)   : {summary['skipped']}",
+            f"  Total images found   : {summary['total']}",
+            f"  Matched (strong)     : {summary['matched']}",
+            f"  Review required      : {summary['review']}",
+            f"  Unmatched            : {summary['unmatched']}",
+            f"  Skipped (errors)     : {summary['skipped']}",
         ]
 
         if metrics and metrics.get("total_matches", 0) > 0:
             lines += [
                 "",
-                "═══ Accuracy ═══",
-                f"  Avg confidence     : {metrics.get('avg_confidence', 0):.1%}",
-                f"  Median confidence  : {metrics.get('median_confidence', 0):.1%}",
-                f"  Total face matches : {metrics.get('total_matches', 0)}",
+                "═══ Match Quality ═══",
+                f"  Avg margin           : {metrics.get('avg_margin', 0):.1%}",
+                f"  Median margin        : {metrics.get('median_margin', 0):.1%}",
+                f"  Total face matches   : {metrics.get('total_matches', 0)}",
+            ]
+
+        if summary.get("review", 0) > 0:
+            lines += [
+                "",
+                "═══ ℹ️ Review Required ═══",
+                f"  {summary['review']} photo(s) copied to _review_required/ — ",
+                "  these are borderline matches needing manual review.",
             ]
 
         enhancements = []
@@ -371,9 +454,13 @@ class KinderSortLiteApp(tk.Tk):
             "  ✓ 100% offline — no data leaves the device",
             "  ✓ CPU-only — works on old laptops",
             "  ✓ Privacy-first — children's photos never uploaded",
+            "  ✓ Biometric cache stored in local app data",
         ]
 
         self._write_summary("\n".join(lines))
+
+        # Update cache status (may have been created during this run)
+        self._update_cache_status()
 
         if summary["total"] == 0:
             messagebox.showwarning(
