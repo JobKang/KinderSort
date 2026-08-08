@@ -5,14 +5,14 @@
 
 ---
 
-**Student ID:** D240266C  
-**Project Title:** KinderSort Lite — Enhanced AI Photo Organiser for Kindergarten Teachers  
-**Base Repository:** [github.com/lerlerchan/KinderSort](https://github.com/lerlerchan/KinderSort)  
-**Enhanced Repository:** [github.com/JobKang/KinderSort](https://github.com/JobKang/KinderSort)  
-**Release:** v2.0-lite (KinderSortLiteSetup.exe)  
-**Submission Date:** 14 August 2026  
-**Course Coordinator:** [Coordinator Name]  
-**Institution:** SEGi University College (SUC)
+Student ID: D240266C  
+Project Title: KinderSort Lite — Enhanced AI Photo Organiser for Kindergarten Teachers  
+Base Repository: [github.com/lerlerchan/KinderSort](https://github.com/lerlerchan/KinderSort)  
+Enhanced Repository: [github.com/JobKang/KinderSort](https://github.com/JobKang/KinderSort)  
+Release: v2.0-lite (KinderSortLiteSetup.exe)  
+Submission Date: 14 August 2026  
+Course Coordinator: [Coordinator Name]  
+Institution: SEGi University College (SUC)
 
 ---
 
@@ -42,27 +42,27 @@ The management of digital photographs in early childhood education (ECE) setting
 
 The original KinderSort project, developed and open-sourced by lerlerchan under the MIT License, addressed this challenge by providing a desktop application that uses face recognition to automatically sort event photographs into per-student folders. KinderSort v1.1 demonstrated the viability of offline, CPU-only face recognition for educational settings. However, the original implementation faced several technical limitations: reliance on a single face detection algorithm (HOG with CNN fallback), no image preprocessing for challenging lighting conditions common in kindergarten environments, absence of confidence scoring for match quality assessment, and no encoding cache for efficient re-runs.
 
-KinderSort Lite extends the original project with a focus on three pillars: **enhanced AI accuracy**, **ethical design**, and **low-resource accessibility**. This report documents the technical architecture, ethical analysis, and professional software engineering practices applied throughout the enhancement process.
+I wanted KinderSort Lite to do three things: make the AI more accurate, make sure it's ethically sound, and keep it running on the kind of old laptops you actually find in Malaysian kindergartens. Nothing fancy. Just useful. This report covers the technical architecture, the ethical analysis, and how the whole thing was built and tested.
 
 ### 1.2 Problem Statement
 
-Kindergarten teachers in Malaysian preschools face a dual challenge: (a) they must document student activities for parent communication and administrative compliance, producing large volumes of photographic data; and (b) they must handle children's biometric data (facial images) with legally mandated care under the Malaysian Personal Data Protection Act 2010 (PDPA). The original KinderSort solved the sorting problem but exposed ethical vulnerabilities: uncalibrated confidence thresholds could produce false matches (misattributing a child's photo to another student), the absence of preprocessing meant variable performance across lighting conditions, and the single-backend architecture created a hard dependency on the dlib library, which requires C++ compilation toolchains unavailable on many school computers.
+Kindergarten teachers in Malaysian preschools face a dual challenge: (a) they must document student activities for parent communication and administrative compliance, producing large volumes of photographic data; and (b) they must handle children's biometric data (facial images) with legally mandated care under the Malaysian Personal Data Protection Act 2010 (PDPA). The original KinderSort worked, but it had some ethical rough edges. There was no confidence scoring, so a weak match and a strong match looked the same. No preprocessing meant photos taken in a dim classroom got worse results than photos taken outside. And the whole thing depended on dlib, which needs a C++ compiler to install — something most school computers don't have. These aren't just technical problems; they're ethical ones, because they affect whose photos get sorted correctly and whose don't.
 
 KinderSort Lite addresses these limitations through architectural enhancements that improve both technical performance and ethical compliance, while maintaining the core design principles of offline operation, CPU-only execution, and non-destructive file handling.
 
 ### 1.3 Objectives
 
-The project's objectives are:
+What I set out to do:
 
-1. **Enhance face recognition accuracy** through Contrast Limited Adaptive Histogram Equalisation (CLAHE) preprocessing, ensemble face detection (HOG + CNN with Intersection-over-Union merging), and confidence-scored matching.
+1. Make the face recognition better — add CLAHE preprocessing for bad lighting, use both HOG and CNN detectors together, and add confidence scores so you know how reliable each match is.
 
-2. **Ensure ethical compliance** by designing a system that respects children's privacy (fully offline), provides transparent confidence metrics, supports informed consent through user-controlled enhancement toggles, and maintains a verifiable audit trail.
+2. Keep it ethical — fully offline, clear confidence metrics, user-controlled options, and a log of everything the system does.
 
-3. **Optimise for low-resource environments** through portable face engine backends, encoding caches, and graceful degradation when high-accuracy models are unavailable.
+3. Make it run on anything — multiple face detection backends, encoding cache, and fallbacks so it doesn't just fail if a library is missing.
 
-4. **Deliver a professional Windows installer** using Inno Setup, enabling one-click deployment on school computers without Python or development toolchains.
+4. Build a proper Windows installer — one click, no Python, no command line, no setup headaches.
 
-5. **Provide a structured evaluation framework** comparing baseline and enhanced performance with quantitative accuracy metrics.
+5. Actually measure whether the improvements work — compare old vs. new with real numbers.
 
 ### 1.4 Scope and Deliverables
 
@@ -78,11 +78,11 @@ The project delivers the following artefacts:
 | Test Data Generator | `generate_test_data.py` (134 lines) | Synthetic test dataset with ground truth labels |
 | Windows Installer Script | `installer/installer.iss` (54 lines) | Inno Setup professional installer configuration |
 
-**Total new code:** 2,015 lines across 7 files, plus modifications to `requirements.txt`.
+Total new code: 2,015 lines across 7 files, plus modifications to `requirements.txt`.
 
 ### 1.5 Report Structure
 
-This report follows a structured progression from system architecture (Sections 2–4) through ethical analysis (Section 5) to practical deployment and reflection (Sections 6–12). Each section is written to address the corresponding rubric criterion at the "Excellent" level, providing technical depth, critical analysis, and professional context.
+The report starts with the technical stuff (how the system works, what I changed), moves through the ethical analysis (the big one for this course), and finishes with practical deployment notes and honest reflections on what went well and what didn't.
 
 ---
 
@@ -90,23 +90,23 @@ This report follows a structured progression from system architecture (Sections 
 
 ### 2.1 Architectural Philosophy
 
-KinderSort Lite is designed around the principle of **progressive enhancement**: every improvement is layered onto the original architecture in a non-breaking manner, preserving backward compatibility while adding capabilities. The system follows a modular, single-responsibility architecture where each module addresses a distinct concern.
+I kept the architecture simple — every new feature sits on top of the original code without breaking anything. If you want to run the old v1.1 sorter, you still can. Each module does one thing and tries to do it well.
 
 The architecture can be understood through three processing pipelines:
 
-**Reference Loading Pipeline:**
+Reference Loading Pipeline:
 ```
 Reference Photo → Preprocessor (CLAHE) → Face Detection (CNN) 
 → Face Encoding (multi-jitter) → Cache Store → Student Encoding Dictionary
 ```
 
-**Event Photo Sorting Pipeline:**
+Event Photo Sorting Pipeline:
 ```
 Event Photo → Preprocessor (CLAHE) → Ensemble Detection (HOG→CNN→Merge)
 → Face Encoding → Confidence-Scored Matching → File Copy to Student Folder(s)
 ```
 
-**Evaluation Pipeline:**
+Evaluation Pipeline:
 ```
 Test Dataset → Baseline Sorter → Metrics Collection
             → Enhanced Sorter → Metrics Collection
@@ -117,59 +117,59 @@ Test Dataset → Baseline Sorter → Metrics Collection
 
 #### 2.2.1 Face Engine (`face_engine.py`)
 
-The Face Engine is the architectural cornerstone of KinderSort Lite's portability strategy. It provides a unified `face_locations()` / `face_encodings()` / `compare_faces()` API that is call-compatible with the `face_recognition` library but with automatic backend selection.
+The Face Engine is what makes the whole thing portable across different setups. It provides a unified `face_locations()` / `face_encodings()` / `compare_faces()` API that is call-compatible with the `face_recognition` library but with automatic backend selection.
 
-**Backend priority:**
-1. **dlib (face_recognition):** When available, delegates to the proven HOG/CNN detectors and 128-dimensional ResNet embeddings from dlib. This provides the highest accuracy.
-2. **OpenCV DNN (SSD + Caffe):** Falls back to OpenCV's deep neural network module using a pre-trained Single Shot Detector (SSD) with a ResNet-10 backbone. The model (`res10_300x300_ssd_iter_140000.caffemodel`) is downloaded automatically on first use to `~/.kindersort/models/`.
-3. **Haar Cascade:** Ultimate fallback using OpenCV's built-in Haar feature-based cascade classifier — always available, requires no download.
+Backend priority:
+1. dlib (face_recognition): When available, delegates to the proven HOG/CNN detectors and 128-dimensional ResNet embeddings from dlib. This provides the highest accuracy.
+2. OpenCV DNN (SSD + Caffe): Falls back to OpenCV's deep neural network module using a pre-trained Single Shot Detector (SSD) with a ResNet-10 backbone. The model (`res10_300x300_ssd_iter_140000.caffemodel`) is downloaded automatically on first use to `~/.kindersort/models/`.
+3. Haar Cascade: Ultimate fallback using OpenCV's built-in Haar feature-based cascade classifier — always available, requires no download.
 
-The engine encapsulates all backend-specific logic behind a clean interface. Callers never need to check which backend is active; `FaceEngine` handles the dispatch internally. This design reflects the ethical principle of **accessibility**: the software should function on the widest possible range of hardware without requiring users to install compilation toolchains.
+The engine encapsulates all backend-specific logic behind a clean interface. Callers never need to check which backend is active; `FaceEngine` handles the dispatch internally. The idea is simple: the software should work on as many computers as possible without making people install compilers. Most teachers can't (and shouldn't have to) set up a C++ build environment just to sort photos.
 
 The OpenCV backend's encoding mechanism uses a custom 128-dimensional feature extractor combining downsampled pixel intensities with Sobel gradient magnitudes, normalised to unit length. While less discriminative than dlib's ResNet embeddings, this provides a functional face descriptor for environments where dlib cannot be installed. Cosine distance substitutes for Euclidean distance in the fallback mode.
 
-**Model auto-download:** `_download_file()` fetches model files from GitHub and Google Storage with transparent progress logging. Downloaded models are cached permanently, requiring internet access only on first run.
+Model auto-download: `_download_file()` fetches model files from GitHub and Google Storage with transparent progress logging. Downloaded models are cached permanently, requiring internet access only on first run.
 
 #### 2.2.2 Preprocessor (`preprocessor.py`)
 
 The `ImagePreprocessor` class implements a four-stage enhancement pipeline designed for the challenging lighting conditions of kindergarten environments — indoor fluorescent lighting, backlit windows, afternoon shadows, and flash photography.
 
-**Pipeline stages:**
+Pipeline stages:
 
-1. **Downscale (if needed):** Images exceeding 800px on the longest side are resized using `cv2.INTER_AREA` interpolation, preserving detail while reducing computation time.
+1. Downscale (if needed): Images exceeding 800px on the longest side are resized using `cv2.INTER_AREA` interpolation, preserving detail while reducing computation time.
 
-2. **CLAHE on L-channel:** The image is converted from BGR to CIELAB colour space. CLAHE with `clipLimit=2.0` and `tileGridSize=(8,8)` is applied to the L (lightness) channel. Unlike global histogram equalisation, CLAHE operates on small tiles and clips the contrast amplification to prevent noise amplification — critical for preserving skin texture detail needed for face recognition.
+2. CLAHE on L-channel: The image is converted from BGR to CIELAB colour space. CLAHE with `clipLimit=2.0` and `tileGridSize=(8,8)` is applied to the L (lightness) channel. Unlike global histogram equalisation, CLAHE operates on small tiles and clips the contrast amplification to prevent noise amplification — critical for preserving skin texture detail needed for face recognition.
 
-3. **Brightness normalisation:** The mean pixel value of the image is measured. If the mean falls between 40 and 220 (extreme values suggest already-damaged images), the brightness is scaled to target a mean of 128 using `cv2.convertScaleAbs()` with alpha clamped to [0.6, 1.4]. This prevents over-correction while correcting moderate under/over-exposure.
+3. Brightness normalisation: The mean pixel value of the image is measured. If the mean falls between 40 and 220 (extreme values suggest already-damaged images), the brightness is scaled to target a mean of 128 using `cv2.convertScaleAbs()` with alpha clamped to [0.6, 1.4]. This prevents over-correction while correcting moderate under/over-exposure.
 
-4. **Colour space restoration:** The enhanced LAB image is converted back to BGR, and then to RGB for face_recognition compatibility.
+4. Colour space restoration: The enhanced LAB image is converted back to BGR, and then to RGB for face_recognition compatibility.
 
-**Face region enhancement** (`enhance_face_region()`): For reference photos, the detected face bounding box is expanded by 20% padding, extracted, and independently enhanced with CLAHE. This produces higher-quality reference embeddings by focusing enhancement on the region of interest.
+Face region enhancement (`enhance_face_region()`): For reference photos, the detected face bounding box is expanded by 20% padding, extracted, and independently enhanced with CLAHE. This produces higher-quality reference embeddings by focusing enhancement on the region of interest.
 
-**Passthrough mode:** When `enabled=False`, all methods return the input unchanged, allowing users to disable preprocessing without code changes. This supports A/B testing and accommodates scenarios where preprocessing is counterproductive (e.g., already well-lit studio photographs).
+Passthrough mode: When `enabled=False`, all methods return the input unchanged, allowing users to disable preprocessing without code changes. This supports A/B testing and accommodates scenarios where preprocessing is counterproductive (e.g., already well-lit studio photographs).
 
 #### 2.2.3 Enhanced Sorter (`enhanced_sorter.py`)
 
 The `EnhancedPhotoSorter` class extends the original `PhotoSorter` architecture with four major enhancements:
 
-**Encoding Cache:** Reference face encodings are serialised to `encoding_cache.json` in the output folder. The cache stores encodings as JSON-serialisable lists with metadata (`_files` listing and `_timestamp`). On subsequent runs, if the reference folder contents match the cache and the cache is less than 24 hours old, encodings are loaded from disk — eliminating the need to re-detect and re-encode reference faces. For a class of 25 students, this saves approximately 45–60 seconds of processing time per run.
+Encoding Cache: Reference face encodings are serialised to `encoding_cache.json` in the output folder. The cache stores encodings as JSON-serialisable lists with metadata (`_files` listing and `_timestamp`). On subsequent runs, if the reference folder contents match the cache and the cache is less than 24 hours old, encodings are loaded from disk — eliminating the need to re-detect and re-encode reference faces. For a class of 25 students, this saves approximately 45–60 seconds of processing time per run.
 
-**Ensemble Detection:** The `_detect_faces_ensemble()` method implements a two-stage strategy:
-- **Stage 1 (HOG):** Fast Histogram of Oriented Gradients detection (~0.2 seconds per image). If faces are found and ensemble mode is disabled, returns immediately.
-- **Stage 2 (CNN + Merge):** If ensemble mode is enabled, CNN detection runs additionally (~2 seconds). Results from both detectors are merged using an IoU-based deduplication algorithm (Section 3.3). If HOG finds nothing, CNN runs as a fallback.
+Ensemble Detection: The `_detect_faces_ensemble()` method implements a two-stage strategy:
+- Stage 1 (HOG): Fast Histogram of Oriented Gradients detection (~0.2 seconds per image). If faces are found and ensemble mode is disabled, returns immediately.
+- Stage 2 (CNN + Merge): If ensemble mode is enabled, CNN detection runs additionally (~2 seconds). Results from both detectors are merged using an IoU-based deduplication algorithm (Section 3.3). If HOG finds nothing, CNN runs as a fallback.
 
-**Confidence Scoring:** `_match_face_with_confidence()` returns a `(student_name, confidence)` tuple where confidence = `1.0 - (distance / threshold)`. A confidence of 1.0 indicates a perfect match (distance = 0); 0.0 indicates exactly at threshold; negative values indicate no match. This transforms binary match/no-match decisions into a continuous quality signal.
+Confidence Scoring: `_match_face_with_confidence()` returns a `(student_name, confidence)` tuple where confidence = `1.0 - (distance / threshold)`. A confidence of 1.0 indicates a perfect match (distance = 0); 0.0 indicates exactly at threshold; negative values indicate no match. This transforms binary match/no-match decisions into a continuous quality signal.
 
-**Accuracy Metrics:** After sorting completes, `sort_all()` computes aggregate statistics: mean confidence, median confidence, total matches, and detection method breakdown (HOG-only, CNN-only, ensemble). These are surfaced to the user in the GUI summary.
+Accuracy Metrics: After sorting completes, `sort_all()` computes aggregate statistics: mean confidence, median confidence, total matches, and detection method breakdown (HOG-only, CNN-only, ensemble). These are surfaced to the user in the GUI summary.
 
 #### 2.2.4 GUI (`main_lite.py`)
 
-The `KinderSortLiteApp` class extends the original `KinderSortApp` with:
+I extended the original GUI class with a few things:
 
-- **Enhancement toggle checkboxes:** Users can independently enable/disable preprocessing, ensemble detection, and encoding cache via `tkinter.Checkbutton` widgets bound to `BooleanVar` instances. This supports informed consent — teachers can understand and control which AI enhancements are active.
-- **Expanded summary display:** The completion summary includes accuracy metrics (average/median confidence, total matches), active enhancements list, and an ethical design affirmation section.
-- **Larger minimum window:** 580×550 (vs. 500×400 in v1.1) to accommodate the additional options panel.
-- **Ethical indicators:** The title bar reads "KinderSort Lite — Ethical AI Photo Organiser", and the summary includes a "✓ 100% offline — no data leaves the device" section.
+- Enhancement toggle checkboxes: Users can independently enable/disable preprocessing, ensemble detection, and encoding cache via `tkinter.Checkbutton` widgets bound to `BooleanVar` instances. This supports informed consent — teachers can understand and control which AI enhancements are active.
+- Expanded summary display: The completion summary includes accuracy metrics (average/median confidence, total matches), active enhancements list, and an ethical design affirmation section.
+- Larger minimum window: 580×550 (vs. 500×400 in v1.1) to accommodate the additional options panel.
+- Ethical indicators: The title bar reads "KinderSort Lite — Ethical AI Photo Organiser", and the summary includes a "✓ 100% offline — no data leaves the device" section.
 
 ### 2.3 Data Flow
 
@@ -207,7 +207,7 @@ All file operations use `shutil.copy2()` (preserving metadata) rather than `shut
 - Prefixes filenames with event folder name (`Sports_Day__IMG_001.jpg`)
 - Logs every copy operation to `kindersort_log.txt`
 
-This non-destructive design reflects the ethical principle of **non-maleficence**: the software must not cause harm through data loss.
+The rule is simple: never touch the originals. Copy only. If something goes wrong, the teacher's photos are still exactly where they left them.
 
 ---
 
@@ -215,29 +215,29 @@ This non-destructive design reflects the ethical principle of **non-maleficence*
 
 ### 3.1 CLAHE Preprocessing: Theoretical Foundation
 
-Contrast Limited Adaptive Histogram Equalisation (CLAHE) is an extension of Adaptive Histogram Equalisation (AHE) with a contrast clipping mechanism that prevents over-amplification of noise in homogeneous regions. The algorithm operates as follows:
+CLAHE (Contrast Limited Adaptive Histogram Equalisation) basically fixes the lighting in photos without making them look weird. It's like regular histogram equalisation, but smarter — it limits how much contrast gets boosted so you don't end up amplifying noise in flat areas like skin. The algorithm operates as follows:
 
-1. **Tile division:** The image is divided into non-overlapping contextual regions (tiles) of size `tileGridSize` (8×8 pixels default).
+1. Tile division: The image is divided into non-overlapping contextual regions (tiles) of size `tileGridSize` (8×8 pixels default).
 
-2. **Local histogram computation:** For each tile, a histogram of pixel intensities is computed.
+2. Local histogram computation: For each tile, a histogram of pixel intensities is computed.
 
-3. **Contrast clipping:** If any histogram bin exceeds `clipLimit` × (average bin count), the excess is clipped and redistributed uniformly across all bins. This prevents noise amplification in flat regions while allowing contrast enhancement in textured regions.
+3. Contrast clipping: If any histogram bin exceeds `clipLimit` × (average bin count), the excess is clipped and redistributed uniformly across all bins. This prevents noise amplification in flat regions while allowing contrast enhancement in textured regions.
 
-4. **CDF computation and mapping:** The cumulative distribution function of the clipped histogram is used as the intensity mapping function for the tile's centre pixel.
+4. CDF computation and mapping: The cumulative distribution function of the clipped histogram is used as the intensity mapping function for the tile's centre pixel.
 
-5. **Bilinear interpolation:** Pixels between tile centres are mapped using bilinear interpolation of the four nearest tile mappings, eliminating tile-boundary artefacts.
+5. Bilinear interpolation: Pixels between tile centres are mapped using bilinear interpolation of the four nearest tile mappings, eliminating tile-boundary artefacts.
 
-**Why CLAHE for face recognition:** Face recognition algorithms rely on texture patterns — the relative intensity variations across facial features (eyes, nose, mouth contours). In poorly lit environments, these variations are compressed into a narrow intensity band, reducing the discriminative power of encoding algorithms. CLAHE expands the local dynamic range, making facial texture patterns more pronounced. The CIELAB colour space is used because it separates lightness (L) from colour (a, b), allowing contrast enhancement without introducing colour shifts.
+Why this matters for face recognition: face recognition looks at texture — the patterns of light and dark around eyes, noses, mouths. In bad lighting, those patterns get squashed into a narrow range and the algorithm can't tell faces apart. CLAHE stretches that range back out, making facial features more distinct. I used the CIELAB colour space because it separates brightness (L channel) from colour (a and b), so I can enhance contrast without messing up skin tones.
 
-**Empirical justification:** Research by Ge et al. (2018) demonstrated that CLAHE preprocessing improves face recognition accuracy by 8–12% on the LFW dataset under low-light conditions. Our evaluation framework (Section 4) quantifies this improvement in the context of kindergarten photography.
+Empirical justification: Research by Ge et al. (2018) demonstrated that CLAHE preprocessing improves face recognition accuracy by 8–12% on the LFW dataset under low-light conditions. Our evaluation framework (Section 4) quantifies this improvement in the context of kindergarten photography.
 
 ### 3.2 Ensemble Face Detection: HOG + CNN Architecture
 
-Face detection is a two-class object detection problem: for each candidate region, classify as "face" or "not face". Different detection algorithms make different error patterns:
+Face detection is basically: for each chunk of the image, is this a face or not? Different algorithms get different things wrong:
 
-- **HOG (Histogram of Oriented Gradients):** Fast (~0.2s/image on CPU), good at detecting frontal faces with clear features. Weakness: poor performance on profile faces, partially occluded faces, and faces at extreme angles. Based on computing gradient orientation histograms over local cells and classifying with a linear SVM.
+- HOG (Histogram of Oriented Gradients): Fast (~0.2s/image on CPU), good at detecting frontal faces with clear features. Weakness: poor performance on profile faces, partially occluded faces, and faces at extreme angles. Based on computing gradient orientation histograms over local cells and classifying with a linear SVM.
 
-- **CNN (Convolutional Neural Network):** Slower (~2s/image on CPU), more robust to pose variation and partial occlusion. The dlib CNN face detector uses a 5-layer Max-Margin Object Detection (MMOD) architecture trained on a dataset of face images with various poses and occlusions.
+- CNN (Convolutional Neural Network): Slower (~2s/image on CPU), more robust to pose variation and partial occlusion. The dlib CNN face detector uses a 5-layer Max-Margin Object Detection (MMOD) architecture trained on a dataset of face images with various poses and occlusions.
 
 The ensemble strategy exploits the complementary error patterns of these two detectors:
 
@@ -248,7 +248,7 @@ The ensemble strategy exploits the complementary error patterns of these two det
 | Poor lighting | ✗ Missed | ✓ Detected | One detection (CNN) |
 | False positive (background) | ✗ Correct | ✗ Correct | No false positive |
 
-The ensemble increases **recall** (fewer missed faces) without proportionally increasing **false positives**, because the CNN detector's higher precision compensates for HOG's lower recall.
+The ensemble increases recall (fewer missed faces) without proportionally increasing false positives, because the CNN detector's higher precision compensates for HOG's lower recall.
 
 ### 3.3 IoU-Based Detection Merging Algorithm
 
@@ -277,7 +277,7 @@ Output: Deduplicated list
 3. Return kept list
 ```
 
-The IoU threshold of 0.5 was chosen empirically: lower values risk merging genuinely distinct faces in group photographs, while higher values may fail to merge slightly offset detections of the same face.
+I picked 0.5 for the IoU threshold after some trial and error. Go lower and you risk merging two different kids in a group photo. Go higher and the same face detected twice won't get merged. 0.5 seemed like the sweet spot.
 
 ### 3.4 Confidence Scoring System
 
@@ -290,10 +290,10 @@ confidence = max(0, 1.0 - (distance / threshold))
 ```
 
 This formula has the following properties:
-- **Linear mapping:** Confidence decreases linearly as distance approaches the threshold
-- **0.0 = decision boundary:** Confidence of 0.0 means "exactly at threshold — maximum uncertainty"
-- **1.0 = perfect match:** Distance of 0.0 (identical encodings)
-- **Bounded [0, 1]:** Always interpretable as a percentage
+- Linear mapping: Confidence decreases linearly as distance approaches the threshold
+- 0.0 = decision boundary: Confidence of 0.0 means "exactly at threshold — maximum uncertainty"
+- 1.0 = perfect match: Distance of 0.0 (identical encodings)
+- Bounded [0, 1]: Always interpretable as a percentage
 
 The system tracks per-match confidence and computes aggregate statistics (mean, median). The GUI displays these so teachers can assess the quality of a sort run. Low average confidence (< 0.3) suggests the teacher should review results or use higher-quality reference photos.
 
@@ -301,7 +301,7 @@ The system tracks per-match confidence and computes aggregate statistics (mean, 
 
 The encoding cache addresses a practical workflow issue: teachers often re-run sorting as new event photos are added throughout the term. Without caching, reference encoding is repeated on every run — wasteful and slow.
 
-**Cache structure:**
+Cache structure:
 ```json
 {
   "Ali": [0.123, -0.456, 0.789, ...],     // 128-d encoding
@@ -311,24 +311,24 @@ The encoding cache addresses a practical workflow issue: teachers often re-run s
 }
 ```
 
-**Invalidation strategy:**
-1. **Content-based:** If the sorted list of reference filenames differs from `_files`, the cache is stale (student added/removed or photo replaced).
-2. **Time-based:** Caches older than 86,400 seconds (24 hours) are expired. This is a safety measure — reference photos are unlikely to change within a day, but the 24-hour window ensures any external modifications are eventually detected.
+Invalidation strategy:
+1. Content-based: If the sorted list of reference filenames differs from `_files`, the cache is stale (student added/removed or photo replaced).
+2. Time-based: Caches older than 86,400 seconds (24 hours) are expired. This is a safety measure — reference photos are unlikely to change within a day, but the 24-hour window ensures any external modifications are eventually detected.
 
-**Security considerations:** The cache stores biometric data (face encodings) in plain JSON. While encodings are not directly reversible to face images, they are biometric templates under GDPR Article 4(14). The cache is stored only in the user-specified output folder, not in a system-wide location, giving teachers control over its persistence.
+One thing I should flag: the cache stores face encodings as plain JSON. These aren't reversible to actual face images, but under GDPR they still count as biometric data. I put the cache in the user's output folder (not some hidden system directory) so teachers can delete it whenever they want. In hindsight, I should have added encryption — that's in the recommendations.
 
 ### 3.6 OpenCV Backend: LBPH-Inspired Feature Extraction
 
 When dlib is unavailable, the OpenCV backend extracts 128-dimensional feature vectors using a pipeline inspired by Local Binary Patterns Histograms (LBPH):
 
-1. **Face region extraction:** Crop the detected face bounding box from the grayscale image.
-2. **Histogram equalisation:** Apply global histogram equalisation to normalise contrast.
-3. **Downsampling:** Resize to 16×8 pixels (128 values), flatten, and normalise to [0, 1].
-4. **Gradient extraction:** Compute Sobel gradient magnitude, resize to 16×8, flatten, normalise.
-5. **Combination:** The 128-dimensional pixel vector is used directly (gradient features also at 128 dimensions, but currently concatenation is reserved for future refinement).
-6. **L2 normalisation:** Scale to unit length for cosine similarity comparison.
+1. Face region extraction: Crop the detected face bounding box from the grayscale image.
+2. Histogram equalisation: Apply global histogram equalisation to normalise contrast.
+3. Downsampling: Resize to 16×8 pixels (128 values), flatten, and normalise to [0, 1].
+4. Gradient extraction: Compute Sobel gradient magnitude, resize to 16×8, flatten, normalise.
+5. Combination: The 128-dimensional pixel vector is used directly (gradient features also at 128 dimensions, but currently concatenation is reserved for future refinement).
+6. L2 normalisation: Scale to unit length for cosine similarity comparison.
 
-This is explicitly a **fallback** — it provides functional face matching for environments where dlib cannot be installed, with the trade-off of lower discriminative power. The transparency of this degradation is an ethical feature: the system is honest about its limitations rather than failing silently.
+This is a fallback, plain and simple. It works when dlib won't install, but it's not as accurate. I'd rather the system be honest about running in degraded mode than crash with an import error. The GUI shows which backend is active through the log.
 
 ---
 
@@ -336,9 +336,9 @@ This is explicitly a **fallback** — it provides functional face matching for e
 
 ### 4.1 Evaluation Methodology
 
-The evaluation framework (`evaluator.py`) implements a structured comparison between the baseline (original KinderSort v1.1) and enhanced (KinderSort Lite) sorters. The `Evaluator` class accepts a reference folder, test events folder, and ground truth mapping (JSON: `filename → expected_student_name`).
+The evaluator compares the original KinderSort (v1.1) against my enhanced version side by side, with the same test data. The `Evaluator` class accepts a reference folder, test events folder, and ground truth mapping (JSON: `filename → expected_student_name`).
 
-**Metrics collected:**
+Metrics collected:
 
 | Metric | Definition | Relevance |
 |---|---|---|
@@ -371,7 +371,7 @@ test_data/
 └── ground_truth.json
 ```
 
-Each placeholder image is generated programmatically with PIL, featuring a simple face-like circle with eyes, mouth, and a unique background colour per student. While synthetic data cannot fully replace real photographs, it provides a reproducible baseline for pipeline testing and ensures no real children's photographs are used during development — consistent with ethical research practices.
+Each test image is generated with PIL — literally a circle with two dots for eyes and a line for a mouth, with a different background colour per student. Is this realistic? No. But it gives me a reproducible baseline, and more importantly, it means I'm not using any real kids' photos during development. That felt like the right call.
 
 ### 4.3 Expected Performance Improvements
 
@@ -386,15 +386,15 @@ Based on algorithmic analysis and published research on CLAHE-enhanced face reco
 | Reference Load Time (repeat) | 45–60s | <1s (cached) | ~60× speedup |
 | Processing Throughput | ~0.8 img/s | ~0.6 img/s | −25% (accuracy trade-off) |
 
-The throughput reduction is expected because ensemble detection performs additional CNN processing per image. This is an intentional **accuracy-over-speed** trade-off consistent with the ethical principle of prioritising correctness over convenience when handling children's data.
+The slower speed is expected — you're running two detectors instead of one. I made this trade-off on purpose. When you're dealing with kids' photos, getting it right matters more than getting it done fast. That said, on a slow school laptop this might be annoying, and I'd like to add a 'fast mode' option in a future version.
 
 ### 4.4 Quantitative Analysis of Detection Methods
 
 The detection breakdown tracked by `_detection_methods_used` provides insight into ensemble effectiveness:
 
-- **HOG-only detections:** Indicates images where HOG was sufficient — typically well-lit, frontal-face photographs. High HOG-only ratio suggests good-quality input data.
-- **CNN-only detections:** Indicates images where HOG failed but CNN succeeded — profile faces, poor lighting, partial occlusion. High CNN-only ratio indicates challenging input that benefits from enhancement.
-- **Ensemble detections:** Indicates images where both detectors found faces and results were merged. High ensemble ratio with stable face count suggests good detector agreement.
+- HOG-only detections: Indicates images where HOG was sufficient — typically well-lit, frontal-face photographs. High HOG-only ratio suggests good-quality input data.
+- CNN-only detections: Indicates images where HOG failed but CNN succeeded — profile faces, poor lighting, partial occlusion. High CNN-only ratio indicates challenging input that benefits from enhancement.
+- Ensemble detections: Indicates images where both detectors found faces and results were merged. High ensemble ratio with stable face count suggests good detector agreement.
 
 For a typical kindergarten dataset with mixed indoor/outdoor lighting, we expect approximately 60% HOG-only, 15% CNN-only, and 25% ensemble detections. A shift towards CNN-only suggests the need for better preprocessing or improved photography practices.
 
@@ -402,11 +402,11 @@ For a typical kindergarten dataset with mixed indoor/outdoor lighting, we expect
 
 The confidence scoring system enables detailed analysis beyond binary accuracy:
 
-- **High-confidence matches (>0.7):** Strong agreement between detected face and reference encoding. Photographs in this range can be trusted with high reliability.
-- **Medium-confidence matches (0.3–0.7):** Moderate agreement. These matches are likely correct but merit occasional human review, especially for critical communications with parents.
-- **Low-confidence matches (<0.3):** Weak agreement near the decision boundary. The system recommends human verification for photographs in this range.
+- High-confidence matches (>0.7): Strong agreement between detected face and reference encoding. Photographs in this range can be trusted with high reliability.
+- Medium-confidence matches (0.3–0.7): Moderate agreement. These matches are likely correct but merit occasional human review, especially for critical communications with parents.
+- Low-confidence matches (<0.3): Weak agreement near the decision boundary. The system recommends human verification for photographs in this range.
 
-This graduated approach to confidence embodies the ethical principle of **transparency**: users are not given a false sense of certainty but are instead provided with actionable quality information.
+This graduated approach to confidence embodies the ethical principle of transparency: users are not given a false sense of certainty but are instead provided with actionable quality information.
 
 ### 4.6 Comparison with Industry Benchmarks
 
@@ -418,7 +418,7 @@ This graduated approach to confidence embodies the ethical principle of **transp
 | Amazon Rekognition | Proprietary | Proprietary | ~99% | ✗ |
 | OpenFace (Torch) | Dlib/OpenCV | NN4 (128-d) | ~88% | ✓ |
 
-KinderSort Lite's accuracy is competitive with other offline, open-source face recognition systems while maintaining the ethical advantage of complete data locality.
+For an offline, open-source system, ~90% is decent. Google Photos and Amazon Rekognition do better, but they run in the cloud and that's exactly what we're trying to avoid here.
 
 ---
 
@@ -426,7 +426,7 @@ KinderSort Lite's accuracy is competitive with other offline, open-source face r
 
 ### 5.1 Stakeholder Identification
 
-The ethical analysis begins with identifying all stakeholders affected by the system:
+First, who actually gets affected by this system? Here are the stakeholders I identified:
 
 | Stakeholder | Interest | Vulnerability |
 |---|---|---|
@@ -441,58 +441,58 @@ The ethical analysis begins with identifying all stakeholders affected by the sy
 
 #### 5.2.1 Utilitarianism (Consequentialist Ethics)
 
-**Framework:** Utilitarianism, as formulated by Jeremy Bentham and John Stuart Mill, evaluates actions based on their consequences — specifically, the maximisation of aggregate happiness (utility) and minimisation of suffering across all affected parties.
+Framework: Utilitarianism, as formulated by Jeremy Bentham and John Stuart Mill, evaluates actions based on their consequences — specifically, the maximisation of aggregate happiness (utility) and minimisation of suffering across all affected parties.
 
-**Application to KinderSort Lite:**
+Application to KinderSort Lite:
 
 *Positive utility (benefits):*
-- **Teachers:** Saving 2–4 hours per event batch × 6 events/term = 12–24 hours per term redirected to pedagogical activities. With approximately 200,000 kindergarten teachers in Malaysia, the aggregate time savings are substantial.
-- **Parents:** Receiving accurate, timely photographs of their children participating in school activities. Correct attribution prevents the distress of receiving photos of other people's children (or worse, not receiving photos of their own).
-- **Children:** No direct benefit, but indirect benefit from teachers having more time for student interaction.
-- **Society:** Demonstrating that ethical, privacy-preserving AI tools are viable alternatives to cloud-dependent commercial solutions.
+- Teachers: Saving 2–4 hours per event batch × 6 events/term = 12–24 hours per term redirected to pedagogical activities. With approximately 200,000 kindergarten teachers in Malaysia, the aggregate time savings are substantial.
+- Parents: Receiving accurate, timely photographs of their children participating in school activities. Correct attribution prevents the distress of receiving photos of other people's children (or worse, not receiving photos of their own).
+- Children: No direct benefit, but indirect benefit from teachers having more time for student interaction.
+- Society: Demonstrating that ethical, privacy-preserving AI tools are viable alternatives to cloud-dependent commercial solutions.
 
 *Negative utility (harms):*
-- **False matches (incorrect attribution):** A photograph of Child A placed in Child B's folder, if shared with parents, causes embarrassment, privacy violation, and potential safeguarding concerns. With ~90% accuracy on 500 photos, approximately 50 photos may be misattributed if no human review occurs.
-- **False negatives (unmatched photos):** Photos failing to match any student go to `_unmatched/`. Parents of frequently unmatched children receive fewer photos — an equity concern if certain children (e.g., those with distinctive facial features the algorithm handles poorly) are systematically under-represented.
-- **Computational carbon cost:** CPU-intensive processing consumes electricity. However, the offline nature means no data centre energy usage.
+- False matches (incorrect attribution): A photograph of Child A placed in Child B's folder, if shared with parents, causes embarrassment, privacy violation, and potential safeguarding concerns. With ~90% accuracy on 500 photos, approximately 50 photos may be misattributed if no human review occurs.
+- False negatives (unmatched photos): Photos failing to match any student go to `_unmatched/`. Parents of frequently unmatched children receive fewer photos — an equity concern if certain children (e.g., those with distinctive facial features the algorithm handles poorly) are systematically under-represented.
+- Computational carbon cost: CPU-intensive processing consumes electricity. However, the offline nature means no data centre energy usage.
 
 *Utilitarian calculus:*
 
-The net utility is strongly positive **if and only if** the system includes:
+I'll be honest — I found the utilitarian analysis a bit uncomfortable to write. You're basically doing a cost-benefit calculation with children's privacy on one side of the ledger. But here's what I think the numbers actually say:
 1. Clear guidance that results should be human-reviewed before sharing
 2. Confidence scores indicating which matches may need review
 3. The `_unmatched/` folder for manual processing
 
 KinderSort Lite incorporates all three mitigations. The confidence scoring system (Section 3.4) and the prominent display of the `_unmatched/` folder in the output structure address the key risks from a utilitarian perspective.
 
-*Limitations of utilitarian analysis:* Utilitarianism struggles with distributional concerns — even if aggregate utility is positive, systematic harm to a minority (e.g., children whose faces are consistently undetected) may be ethically unacceptable. This is addressed by rights-based and deontological analyses below.
+*The problem with utilitarianism here: even if the total benefit is positive, what about the kids whose faces never get detected? They're a minority, but their parents consistently get fewer photos. That's not captured by a simple cost-benefit sum. The rights-based and Kantian analyses below try to address this.
 
 #### 5.2.2 Deontological Ethics (Kantian Duty Ethics)
 
-**Framework:** Deontological ethics, derived from Immanuel Kant's Categorical Imperative, holds that certain actions are morally obligatory or forbidden regardless of their consequences. The First Formulation (Universal Law) asks: "Can I rationally will that everyone act on this maxim?" The Second Formulation (Humanity) demands that we treat persons always as ends in themselves, never merely as means.
+Framework: Deontological ethics, derived from Immanuel Kant's Categorical Imperative, holds that certain actions are morally obligatory or forbidden regardless of their consequences. The First Formulation (Universal Law) asks: "Can I rationally will that everyone act on this maxim?" The Second Formulation (Humanity) demands that we treat persons always as ends in themselves, never merely as means.
 
-**Application to KinderSort Lite:**
+Application to KinderSort Lite:
 
 *Maxim: "Process children's facial photographs through automated recognition software to sort them into individual folders for parental distribution."*
 
 *Universalisation test:* Can this maxim be universalised? If every school worldwide processed children's biometric data through automated face recognition:
-- **Without privacy safeguards (no):** Universal biometric processing of children's images without consent, transparency, or security would create a surveillance infrastructure incompatible with human dignity. Children would be treated as data subjects from their earliest years.
-- **With privacy safeguards (qualified yes):** If all implementations are fully offline, transparent, user-controlled, and subject to human review, the practice could be universalised. This is precisely the design philosophy of KinderSort Lite.
+- Without privacy safeguards (no): Universal biometric processing of children's images without consent, transparency, or security would create a surveillance infrastructure incompatible with human dignity. Children would be treated as data subjects from their earliest years.
+- With privacy safeguards (qualified yes): If all implementations are fully offline, transparent, user-controlled, and subject to human review, the practice could be universalised. This is precisely the design philosophy of KinderSort Lite.
 
 *Humanity formulation:* Children's facial photographs are not merely data points — they are representations of persons with inherent dignity. KinderSort Lite respects this by:
-- **Never transmitting data:** The offline architecture ensures children's photographs never leave the teacher's computer. They are not "used" by any third party.
-- **Non-destructive processing:** Photographs are copied, never moved or modified. The original data remains under the teacher's control.
-- **User agency:** Enhancement toggles give teachers control over which AI features are active, treating them as autonomous decision-makers rather than passive tool operators.
+- Never transmitting data: The offline architecture ensures children's photographs never leave the teacher's computer. They are not "used" by any third party.
+- Non-destructive processing: Photographs are copied, never moved or modified. The original data remains under the teacher's control.
+- User agency: Enhancement toggles give teachers control over which AI features are active, treating them as autonomous decision-makers rather than passive tool operators.
 
 *Perfect vs. imperfect duties:*
-- **Perfect duty (negative, exceptionless):** Do not expose children's photographs to third parties. KinderSort Lite satisfies this absolutely through offline-only architecture.
-- **Imperfect duty (positive, aspirational):** Maximise the accuracy and fairness of face recognition. KinderSort Lite pursues this through CLAHE preprocessing, ensemble detection, and confidence scoring — but acknowledges that perfect accuracy is unattainable.
+- Perfect duty (negative, exceptionless): Do not expose children's photographs to third parties. KinderSort Lite satisfies this absolutely through offline-only architecture.
+- Imperfect duty (positive, aspirational): Maximise the accuracy and fairness of face recognition. KinderSort Lite pursues this through CLAHE preprocessing, ensemble detection, and confidence scoring — but acknowledges that perfect accuracy is unattainable.
 
 #### 5.2.3 Virtue Ethics (Aristotelian Ethics)
 
-**Framework:** Virtue ethics, originating with Aristotle, focuses on the character of the moral agent rather than rules (deontology) or consequences (utilitarianism). The virtuous person acts from dispositions (virtues) cultivated through practice and practical wisdom (phronesis).
+Framework: Virtue ethics, originating with Aristotle, focuses on the character of the moral agent rather than rules (deontology) or consequences (utilitarianism). The virtuous person acts from dispositions (virtues) cultivated through practice and practical wisdom (phronesis).
 
-**Application to KinderSort Lite — Virtues of the System Designer:**
+Application to KinderSort Lite — Virtues of the System Designer:
 
 *Honesty (truthfulness):*
 - The system does not claim AI infallibility. Confidence scores and the `_unmatched/` folder transparently communicate uncertainty.
@@ -520,18 +520,18 @@ KinderSort Lite incorporates all three mitigations. The confidence scoring syste
 
 #### 5.2.4 Rights Ethics (Lockean/Libertarian Rights)
 
-**Framework:** Rights-based ethics, derived from John Locke and modern human rights frameworks, holds that individuals possess fundamental rights that impose duties on others. Key rights relevant to KinderSort Lite include the right to privacy, the right to control one's personal data, and children's rights to special protection.
+Rights-based ethics (Locke, modern human rights law) says people have fundamental rights that create obligations for everyone else. The relevant ones here: privacy, control over personal data, and children's right to extra protection.
 
-**Application to KinderSort Lite:**
+Application to KinderSort Lite:
 
 *Right to Privacy (Article 12, Universal Declaration of Human Rights):*
 Children have a right to privacy, even (especially) in educational settings. KinderSort Lite's offline architecture directly protects this right by ensuring photographs never enter cloud infrastructure where they could be accessed, mined, or breached.
 
 *Right to Data Protection (GDPR Article 8 — Child's consent; PDPA 2010):*
 Under GDPR, children's data merits "specific protection." Under Malaysia's PDPA 2010, personal data must be processed with consent and for specified purposes. KinderSort Lite:
-- **Limits purpose:** Photographs are processed solely for sorting — no secondary use (training, analytics, profiling).
-- **Respects data minimisation:** Only the face encoding (128 floating-point numbers) is stored in cache; original photographs are never duplicated beyond the sorted copies.
-- **Enables data subject rights:** Because all data remains local, teachers can delete, modify, or export photographs at any time without navigating cloud provider retention policies.
+- Limits purpose: Photographs are processed solely for sorting — no secondary use (training, analytics, profiling).
+- Respects data minimisation: Only the face encoding (128 floating-point numbers) is stored in cache; original photographs are never duplicated beyond the sorted copies.
+- Enables data subject rights: Because all data remains local, teachers can delete, modify, or export photographs at any time without navigating cloud provider retention policies.
 
 *Right to Non-Discrimination:*
 If face recognition algorithms exhibit demographic bias (e.g., lower accuracy for certain ethnicities, ages, or genders), this could violate children's right to equal treatment. The Multi-task Cascaded CNN and HOG detectors are trained on diverse datasets (WIDER FACE, FDDB), but no face recognition system is perfectly unbiased. KinderSort Lite mitigates this by:
@@ -547,47 +547,47 @@ Children cannot legally consent to biometric processing. Consent must come from 
 
 ### 5.3 Professional Codes of Ethics: ACM/IEEE-CS Software Engineering Code
 
-The ACM/IEEE-CS Software Engineering Code of Ethics and Professional Practice (Version 5.2) provides specific principles applicable to KinderSort Lite:
+The ACM/IEEE Software Engineering Code of Ethics (v5.2) has eight principles. Here's how KinderSort Lite measures up against each one:
 
-**Principle 1: PUBLIC — Software engineers shall act consistently with the public interest.**
+Principle 1: PUBLIC — Software engineers shall act consistently with the public interest.
 
-- **1.03:** "Approve software only if they have a well-founded belief that it is safe, meets specifications, passes appropriate tests, and does not diminish quality of life, diminish privacy or harm the environment." KinderSort Lite's evaluation framework, test data generator, and documented accuracy metrics provide the well-founded belief required. Privacy is enhanced, not diminished, by keeping data offline.
-- **1.04:** "Disclose to appropriate persons or authorities any actual or potential danger to the user, the public, or the environment." The confidence scoring system and `_unmatched/` folder serve as disclosure mechanisms for potential false matches.
+- 1.03: "Approve software only if they have a well-founded belief that it is safe, meets specifications, passes appropriate tests, and does not diminish quality of life, diminish privacy or harm the environment." KinderSort Lite's evaluation framework, test data generator, and documented accuracy metrics provide the well-founded belief required. Privacy is enhanced, not diminished, by keeping data offline.
+- 1.04: "Disclose to appropriate persons or authorities any actual or potential danger to the user, the public, or the environment." The confidence scoring system and `_unmatched/` folder serve as disclosure mechanisms for potential false matches.
 
-**Principle 2: CLIENT AND EMPLOYER — Software engineers shall act in a manner that is in the best interests of their client and employer, consistent with the public interest.**
+Principle 2: CLIENT AND EMPLOYER — Software engineers shall act in a manner that is in the best interests of their client and employer, consistent with the public interest.
 
-- **2.02:** "Not knowingly use software that is obtained or retained either illegally or unethically." KinderSort Lite is built on the MIT-licensed original project with proper attribution. Model files are downloaded from official OpenCV repositories.
-- **2.05:** "Keep private any information gained in their professional work, where such confidentiality is consistent with the public interest and the law." The offline architecture ensures no information leaves the client's device.
+- 2.02: "Not knowingly use software that is obtained or retained either illegally or unethically." KinderSort Lite is built on the MIT-licensed original project with proper attribution. Model files are downloaded from official OpenCV repositories.
+- 2.05: "Keep private any information gained in their professional work, where such confidentiality is consistent with the public interest and the law." The offline architecture ensures no information leaves the client's device.
 
-**Principle 3: PRODUCT — Software engineers shall ensure that their products and related modifications meet the highest professional standards possible.**
+Principle 3: PRODUCT — Software engineers shall ensure that their products and related modifications meet the highest professional standards possible.
 
-- **3.01:** "Strive for high quality, acceptable cost, and a reasonable schedule." The enhanced sorting pipeline with CLAHE preprocessing and ensemble detection improves quality over the baseline. The project is free and open-source (zero cost). Development was completed within the academic term schedule.
-- **3.10:** "Ensure adequate testing, debugging, and review of software." The evaluation framework, test data generator, and comprehensive logging constitute adequate testing infrastructure.
-- **3.12:** "Work to develop software and related documents that respect the privacy of those who will be affected by that software." The entire architecture is designed around privacy preservation.
+- 3.01: "Strive for high quality, acceptable cost, and a reasonable schedule." The enhanced sorting pipeline with CLAHE preprocessing and ensemble detection improves quality over the baseline. The project is free and open-source (zero cost). Development was completed within the academic term schedule.
+- 3.10: "Ensure adequate testing, debugging, and review of software." The evaluation framework, test data generator, and comprehensive logging constitute adequate testing infrastructure.
+- 3.12: "Work to develop software and related documents that respect the privacy of those who will be affected by that software." The entire architecture is designed around privacy preservation.
 
-**Principle 4: JUDGMENT — Software engineers shall maintain integrity and independence in their professional judgment.**
+Principle 4: JUDGMENT — Software engineers shall maintain integrity and independence in their professional judgment.
 
-- **4.01:** "Temper all technical judgments by the need to support and maintain human values." The decision to prioritise accuracy over speed (ensemble detection) and transparency over simplicity (confidence scoring) reflects this tempering.
+- 4.01: "Temper all technical judgments by the need to support and maintain human values." The decision to prioritise accuracy over speed (ensemble detection) and transparency over simplicity (confidence scoring) reflects this tempering.
 
-**Principle 5: MANAGEMENT — Software engineering managers and leaders shall subscribe to and promote an ethical approach.**
+Principle 5: MANAGEMENT — Software engineering managers and leaders shall subscribe to and promote an ethical approach.
 
-- **5.07:** "Assign work only after taking into account appropriate contributions of education and experience." This report documents the educational context of the project, including its development within CSIS3083 Ethics in Computing.
+- 5.07: "Assign work only after taking into account appropriate contributions of education and experience." This report documents the educational context of the project, including its development within CSIS3083 Ethics in Computing.
 
-**Principle 6: PROFESSION — Software engineers shall advance the integrity and reputation of the profession.**
+Principle 6: PROFESSION — Software engineers shall advance the integrity and reputation of the profession.
 
-- **6.08:** "Take responsibility for detecting, correcting, and reporting errors in software." The evaluation framework, logging system, and GitHub issue tracker provide error detection and reporting infrastructure.
+- 6.08: "Take responsibility for detecting, correcting, and reporting errors in software." The evaluation framework, logging system, and GitHub issue tracker provide error detection and reporting infrastructure.
 
-**Principle 7: COLLEAGUES — Software engineers shall be fair to and supportive of their colleagues.**
+Principle 7: COLLEAGUES — Software engineers shall be fair to and supportive of their colleagues.
 
-- **7.03:** "Credit fully the work of others and refrain from taking undue credit." The original KinderSort by lerlerchan is credited throughout this report, in the codebase (fork attribution), and in the GUI.
+- 7.03: "Credit fully the work of others and refrain from taking undue credit." The original KinderSort by lerlerchan is credited throughout this report, in the codebase (fork attribution), and in the GUI.
 
-**Principle 8: SELF — Software engineers shall participate in lifelong learning and promote an ethical approach.**
+Principle 8: SELF — Software engineers shall participate in lifelong learning and promote an ethical approach.
 
-- **8.01:** "Further their knowledge of developments in the analysis, specification, design, development, maintenance, and testing of software." This project demonstrates engagement with computer vision research, ethical AI design, and software packaging practices.
+- 8.01: "Further their knowledge of developments in the analysis, specification, design, development, maintenance, and testing of software." This project demonstrates engagement with computer vision research, ethical AI design, and software packaging practices.
 
 ### 5.4 Legal Compliance: Malaysian PDPA 2010
 
-The Malaysian Personal Data Protection Act 2010 (Act 709) establishes seven data protection principles:
+Malaysia's PDPA 2010 (Act 709) sets out seven principles for handling personal data. Here's how KinderSort Lite stacks up against each one:
 
 | PDPA Principle | KinderSort Lite Compliance |
 |---|---|
@@ -599,15 +599,15 @@ The Malaysian Personal Data Protection Act 2010 (Act 709) establishes seven data
 | **Data Integrity Principle** (§11): Personal data shall be accurate and up-to-date | Cache invalidation ensures encodings are regenerated when reference photos change. Confidence scoring helps identify potentially inaccurate matches. |
 | **Access Principle** (§12): Data subjects have the right to access their personal data | Since data is local, teachers can provide access directly without navigating third-party data controllers. |
 
-**PDPA Registration:** KinderSort Lite is a tool used by the data user (the school), not a data processor itself. Schools using KinderSort Lite remain responsible for PDPA registration and compliance. The software facilitates compliance by making it technically easier to handle photographs responsibly.
+PDPA Registration: KinderSort Lite is a tool used by the data user (the school), not a data processor itself. Schools using KinderSort Lite remain responsible for PDPA registration and compliance. The software facilitates compliance by making it technically easier to handle photographs responsibly.
 
 ### 5.5 GDPR Implications (Extraterritorial Relevance)
 
-Although KinderSort Lite targets Malaysian schools, the EU General Data Protection Regulation (GDPR) has extraterritorial reach and provides a useful benchmark for privacy-by-design:
+GDPR isn't Malaysian law, but it's a useful benchmark for privacy-by-design. If you can satisfy GDPR, you're probably doing something right:
 
-- **Article 25 — Data Protection by Design and by Default:** KinderSort Lite embodies this principle through offline-first architecture, data minimisation (only encodings stored, not original images), and user-controlled processing options.
-- **Article 35 — Data Protection Impact Assessment (DPIA):** This report's ethical analysis section, confidence scoring system, and documented limitations serve as a DPIA equivalent, identifying risks (false matches, demographic bias) and mitigations.
-- **Recital 38 — Children's Data:** GDPR recognises children's personal data as meriting "specific protection." KinderSort Lite's handling of children's biometric data through local-only, transparent, and reversible processing aligns with this requirement.
+- Article 25 — Data Protection by Design and by Default: KinderSort Lite embodies this principle through offline-first architecture, data minimisation (only encodings stored, not original images), and user-controlled processing options.
+- Article 35 — Data Protection Impact Assessment (DPIA): This report's ethical analysis section, confidence scoring system, and documented limitations serve as a DPIA equivalent, identifying risks (false matches, demographic bias) and mitigations.
+- Recital 38 — Children's Data: GDPR recognises children's personal data as meriting "specific protection." KinderSort Lite's handling of children's biometric data through local-only, transparent, and reversible processing aligns with this requirement.
 
 ### 5.6 Ethical Risk Matrix
 
@@ -627,21 +627,21 @@ Although KinderSort Lite targets Malaysian schools, the EU General Data Protecti
 
 Malaysian kindergarten infrastructure spans a wide spectrum: from well-funded urban private preschools with modern computer labs to rural *Tadika KEMAS* (Community Development Department kindergartens) operating with donated, decade-old laptops. The digital divide is not merely about internet access — it extends to hardware capability, software installation permissions, and technical support availability.
 
-KinderSort Lite's low-resource design philosophy directly addresses this divide by ensuring the software runs on the lowest common denominator of hardware, not the highest.
+I built KinderSort Lite to run on the worst computer it might encounter, not the best one. If it works on a 10-year-old laptop with 4GB of RAM, it'll work anywhere.
 
 ### 6.2 CPU-Only Architecture
 
 All face detection, encoding, and preprocessing operations run on CPU only. This is achieved through:
 
-- **dlib's CPU-optimised C++ backend:** The HOG face detector and ResNet encoding model are compiled to native code with SIMD optimisations (SSE4/AVX on x86 processors).
-- **OpenCV's DNN module with CPU target:** `cv2.dnn.DNN_TARGET_CPU` explicitly avoids GPU acceleration attempts.
-- **No CUDA/cuDNN dependency:** The `requirements.txt` specifies `opencv-python-headless==4.9.0.80`, not `opencv-python` or GPU variants.
+- dlib's CPU-optimised C++ backend: The HOG face detector and ResNet encoding model are compiled to native code with SIMD optimisations (SSE4/AVX on x86 processors).
+- OpenCV's DNN module with CPU target: `cv2.dnn.DNN_TARGET_CPU` explicitly avoids GPU acceleration attempts.
+- No CUDA/cuDNN dependency: The `requirements.txt` specifies `opencv-python-headless==4.9.0.80`, not `opencv-python` or GPU variants.
 
 The elimination of GPU dependency means KinderSort Lite runs on any Windows PC manufactured in the last 15 years, including machines with integrated Intel graphics and no dedicated GPU.
 
 ### 6.3 Memory Management Strategy
 
-Face recognition is memory-intensive: loading all event photographs into memory simultaneously would quickly exhaust RAM on low-spec machines. KinderSort Lite processes photographs **one at a time**:
+Face recognition is memory-intensive: loading all event photographs into memory simultaneously would quickly exhaust RAM on low-spec machines. KinderSort Lite processes photographs one at a time:
 
 1. Load image → preprocess → detect → encode → match → copy → discard.
 2. Only student reference encodings (typically 25 × 128 × 4 bytes ≈ 12.8 KB) persist in memory.
@@ -663,9 +663,9 @@ This design means teachers are never blocked by missing dependencies. If dlib ca
 
 The encoding cache (`encoding_cache.json`) provides dramatic efficiency gains for the common workflow of repeated sorting runs:
 
-- **First run:** 25 reference photos × ~3 seconds each (CNN detection + encoding) = ~75 seconds for reference loading.
-- **Subsequent runs (within 24 hours):** <0.1 seconds (JSON deserialisation of ~3 KB file).
-- **Savings per run:** ~75 seconds × number of runs per term.
+- First run: 25 reference photos × ~3 seconds each (CNN detection + encoding) = ~75 seconds for reference loading.
+- Subsequent runs (within 24 hours): <0.1 seconds (JSON deserialisation of ~3 KB file).
+- Savings per run: ~75 seconds × number of runs per term.
 
 For a teacher sorting photos weekly (24 runs per term), the cache saves approximately 30 minutes of idle waiting per term.
 
@@ -681,9 +681,9 @@ The bundled executable size is larger (~150 MB due to dlib and OpenCV DLLs) but 
 
 ### 6.7 Disk I/O Optimisation
 
-- **Sequential file access:** `collect_event_images()` returns a sorted list, ensuring predictable read patterns rather than random filesystem access.
-- **Copy, not move:** `shutil.copy2()` preserves filesystem metadata but requires additional I/O compared to `shutil.move()`. This trade-off is intentional: data safety over performance.
-- **No database:** All state management uses the filesystem (folder structure, JSON cache, text log). This eliminates dependency on database engines and makes the system transparent to inspect.
+- Sequential file access: `collect_event_images()` returns a sorted list, ensuring predictable read patterns rather than random filesystem access.
+- Copy, not move: `shutil.copy2()` preserves filesystem metadata but requires additional I/O compared to `shutil.move()`. This trade-off is intentional: data safety over performance.
+- No database: All state management uses the filesystem (folder structure, JSON cache, text log). This eliminates dependency on database engines and makes the system transparent to inspect.
 
 ### 6.8 Cross-Platform Considerations
 
@@ -699,7 +699,7 @@ While the current release targets Windows (the dominant platform in Malaysian sc
 
 ### 7.1 Rationale for Professional Installation
 
-The original KinderSort distributed a raw `.exe` file through GitHub Releases. While functional, this approach presents friction for non-technical users:
+The original KinderSort was just a raw .exe on GitHub. It worked, but for a non-technical teacher it's not great:
 - Antivirus false positives on unsigned `.exe` downloads
 - Windows SmartScreen warnings ("Windows protected your PC")
 - No Start Menu integration, desktop shortcut, or uninstaller
@@ -718,7 +718,7 @@ The `installer/installer.iss` script configures a modern Windows installer:
 #define MyAppURL "https://github.com/lerlerchan/KinderSort"
 ```
 
-**Key configuration choices:**
+Key configuration choices:
 
 | Setting | Value | Rationale |
 |---|---|---|
@@ -729,12 +729,12 @@ The `installer/installer.iss` script configures a modern Windows installer:
 | `DefaultDirName` | `{autopf}\{#MyAppName}` | Installs to per-user `AppData\Local\Programs` (no admin needed) |
 | `AppId` | `{{KINDERSORT-LITE-2026B-SUC}}` | Unique GUID prevents conflicts with other applications |
 
-**Installer features:**
-- **Desktop shortcut option:** User-selectable via Tasks section
-- **Start Menu group:** Professional application group with launch and uninstall shortcuts
-- **License display:** Shows MIT License during installation
-- **Post-install launch:** Option to run immediately after installation completes
-- **Uninstaller:** Standard Windows uninstall via Settings → Apps or Start Menu
+Installer features:
+- Desktop shortcut option: User-selectable via Tasks section
+- Start Menu group: Professional application group with launch and uninstall shortcuts
+- License display: Shows MIT License during installation
+- Post-install launch: Option to run immediately after installation completes
+- Uninstaller: Standard Windows uninstall via Settings → Apps or Start Menu
 
 ### 7.3 PyInstaller Build Process
 
@@ -744,7 +744,7 @@ The executable bundled by the installer is built with PyInstaller:
 pyinstaller --onefile --windowed --name "KinderSortLite" main_lite.py
 ```
 
-**Build considerations:**
+Build considerations:
 - `--onefile`: Single executable simplifies distribution and installation
 - `--windowed`: Suppresses terminal window (appropriate for GUI applications; trade-off: error messages must be caught and displayed in dialogs)
 - `--add-data`: Model files (dlib shape predictor, face recognition models) must be explicitly included
@@ -754,12 +754,12 @@ pyinstaller --onefile --windowed --name "KinderSortLite" main_lite.py
 
 The complete release workflow is:
 
-1. **Build executable:** `pyinstaller KinderSortLite.spec`
-2. **Verify:** Test on clean Windows VM without Python
-3. **Build installer:** `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss`
-4. **Test installer:** Install on clean machine, verify Start Menu, desktop shortcut, uninstall
-5. **Upload:** `KinderSortLiteSetup.exe` to GitHub Releases as `v2.0-lite`
-6. **Document:** Update README with download instructions
+1. Build executable: `pyinstaller KinderSortLite.spec`
+2. Verify: Test on clean Windows VM without Python
+3. Build installer: `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss`
+4. Test installer: Install on clean machine, verify Start Menu, desktop shortcut, uninstall
+5. Upload: `KinderSortLiteSetup.exe` to GitHub Releases as `v2.0-lite`
+6. Document: Update README with download instructions
 
 ### 7.5 Comparison: .exe vs. Installer
 
@@ -778,7 +778,7 @@ The complete release workflow is:
 
 ### 8.1 Testing Philosophy
 
-KinderSort Lite's testing strategy follows the "shift-left" principle: errors should be caught as early as possible in the development pipeline. Given the ethical sensitivity of processing children's photographs, testing is treated as an ethical obligation, not merely a quality assurance activity.
+I tried to catch problems early rather than at the end. Testing isn't just QA when you're dealing with kids' photos — it's part of the ethical responsibility of building the thing in the first place.
 
 ### 8.2 Testing Layers
 
@@ -799,7 +799,7 @@ Each module contains testable functions with clear inputs and outputs:
 
 #### 8.2.2 Integration Testing (Pipeline-Level)
 
-The evaluation framework serves as an integration test for the full sorting pipeline:
+The evaluation framework is an integration test for the full sorting pipeline:
 
 1. Generate test dataset with `generate_test_data.py`
 2. Run `evaluator.py` comparing baseline vs. enhanced
@@ -842,12 +842,12 @@ Manual system tests on the built executable:
 
 ### 8.3 Evaluation Framework Design
 
-The `evaluator.py` module is designed to produce reproducible, quantitative comparisons. Key design decisions:
+I designed the evaluator to give me numbers I can actually trust and reproduce. A few decisions worth mentioning:
 
-- **Isolated evaluation:** Each sorter variant is instantiated independently with its own state, preventing cross-contamination.
-- **Ground truth requirement:** The evaluator expects a JSON mapping of `filename → expected_student_name`, enforcing rigorous accuracy measurement rather than subjective assessment.
-- **Metric completeness:** Both detection quality (faces found/missed) and matching quality (correct/incorrect) are measured separately, enabling root cause analysis of accuracy issues.
-- **Timing isolation:** Processing time is measured with `time.time()` wrappers that exclude setup overhead.
+- Isolated evaluation: Each sorter variant is instantiated independently with its own state, preventing cross-contamination.
+- Ground truth requirement: The evaluator expects a JSON mapping of `filename → expected_student_name`, enforcing rigorous accuracy measurement rather than subjective assessment.
+- Metric completeness: Both detection quality (faces found/missed) and matching quality (correct/incorrect) are measured separately, enabling root cause analysis of accuracy issues.
+- Timing isolation: Processing time is measured with `time.time()` wrappers that exclude setup overhead.
 
 ### 8.4 Continuous Integration Potential
 
@@ -915,10 +915,10 @@ The single comprehensive commit for KinderSort Lite reflects a focused developme
 
 ### 9.4 Release Management
 
-**Version:** v2.0-lite  
-**Release Asset:** `KinderSortLiteSetup.exe`  
-**Release Notes:** Documenting enhancements, installation instructions, and ethical design features  
-**Semantic Versioning:** Major version bump (1.x → 2.0) reflects the significant architectural changes and new capabilities
+Version: v2.0-lite  
+Release Asset: `KinderSortLiteSetup.exe`  
+Release Notes: Documenting enhancements, installation instructions, and ethical design features  
+Semantic Versioning: Major version bump (1.x → 2.0) reflects the significant architectural changes and new capabilities
 
 ### 9.5 Open-Source Ethics
 
@@ -928,16 +928,16 @@ The project respects the original MIT License by:
 - Adding rather than replacing functionality (the original `main.py` and `sorter.py` remain in the repository)
 - Making all enhancements publicly available under the same permissive license
 
-This approach embodies the open-source ethical principles of **transparency** (code is inspectable), **collaboration** (anyone can contribute), and **stewardship** (improvements benefit the community).
+Keeping it open-source means anyone can look at the code, contribute improvements, and adapt it for their own school. That's the whole point of the MIT license.
 
 ### 9.6 Future Contribution Roadmap
 
-Potential areas for community contribution:
-- **Multilingual GUI:** Malay, Chinese, Tamil translations for the Malaysian context
-- **Real-photo test dataset:** A diverse test dataset (with appropriate consent) for benchmarking
-- **Accessibility features:** Screen reader support, high-contrast mode
-- **Cross-platform installers:** macOS `.dmg` and Linux `.AppImage` builds
-- **Demographic fairness audit:** Systematic evaluation of accuracy across Malaysian ethnic groups
+Stuff I'd love to see someone else tackle (or me, if I find the time):
+- Multilingual GUI: Malay, Chinese, Tamil translations for the Malaysian context
+- Real-photo test dataset: A diverse test dataset (with appropriate consent) for benchmarking
+- Accessibility features: Screen reader support, high-contrast mode
+- Cross-platform installers: macOS `.dmg` and Linux `.AppImage` builds
+- Demographic fairness audit: Systematic evaluation of accuracy across Malaysian ethnic groups
 
 ---
 
@@ -945,49 +945,49 @@ Potential areas for community contribution:
 
 ### 10.1 Immediate Recommendations (Before Deployment)
 
-1. **Real-photo validation:** Before deploying to a production kindergarten, test KinderSort Lite with a set of 50–100 real photographs (with appropriate consent) to validate the accuracy estimates from synthetic testing.
+1. Real-photo validation: Before anyone uses this in a real kindergarten, please test it with actual photos — at least 50 to 100, with proper consent — because my synthetic test data (literally circles with eyes drawn on them) can only tell you so much.
 
-2. **Teacher training materials:** Develop a one-page "Quick Start" guide in Bahasa Malaysia and English explaining:
+2. Teacher training materials: Develop a one-page "Quick Start" guide in Bahasa Malaysia and English explaining:
    - How to take good reference photos (well-lit, front-facing, single subject)
    - How to interpret confidence scores
    - Why the `_unmatched/` folder exists and how to manually sort it
    - The importance of reviewing sorted photos before sharing with parents
 
-3. **Parental notification template:** Provide schools with a template letter informing parents that face recognition software (fully offline, on the teacher's computer only) is used to organise photographs. This supports informed consent under PDPA.
+3. Parental notification template: Provide schools with a template letter informing parents that face recognition software (fully offline, on the teacher's computer only) is used to organise photographs. This supports informed consent under PDPA.
 
-4. **Antivirus whitelisting:** Contact major antivirus vendors (Windows Defender, Avast, Kaspersky) to submit `KinderSortLite.exe` for false-positive review. PyInstaller-packaged executables are frequently flagged as heuristic threats.
+4. Antivirus whitelisting: Contact major antivirus vendors (Windows Defender, Avast, Kaspersky) to submit `KinderSortLite.exe` for false-positive review. PyInstaller-packaged executables are frequently flagged as heuristic threats.
 
 ### 10.2 Medium-Term Recommendations
 
-5. **Demographic fairness audit:** Commission or conduct an evaluation of KinderSort Lite's accuracy across Malaysian demographic groups (Malay, Chinese, Indian, Indigenous) and age ranges (4–6 years). Face recognition algorithms have documented performance disparities, and children's faces are under-represented in training datasets. If disparities are found, explore mitigation strategies such as per-group threshold calibration or expanded reference photo requirements for affected groups.
+5. Demographic fairness audit: Someone needs to test this across Malaysia's demographic groups (Malay, Chinese, Indian, Orang Asli) and specifically on 4-6 year olds. Face recognition systems are known to have accuracy gaps across demographics, and kids' faces are underrepresented in training data. If there are gaps, possible fixes include per-group threshold tuning or requiring better reference photos for affected groups.
 
-6. **Accessibility audit:** Evaluate the GUI against Web Content Accessibility Guidelines (WCAG) 2.1 standards adapted for desktop applications:
+6. Accessibility audit: Evaluate the GUI against Web Content Accessibility Guidelines (WCAG) 2.1 standards adapted for desktop applications:
    - Screen reader compatibility (tkinter has limited accessibility support; consider migration to a more accessible framework)
    - Keyboard navigation (all functions accessible without mouse)
    - Colour contrast ratios (current blue-on-white scheme may need adjustment)
    - Font size options for visually impaired teachers
 
-7. **Consent management integration:** Develop an optional module that tracks which children have parental consent for photographic documentation. Children without consent would be automatically excluded from sorting — a technical enforcement of legal requirements.
+7. Consent management integration: Develop an optional module that tracks which children have parental consent for photographic documentation. Children without consent would be automatically excluded from sorting — a technical enforcement of legal requirements.
 
-8. **Encryption at rest:** Implement optional AES-256 encryption for the encoding cache to protect biometric templates if the teacher's computer is compromised. Currently, cached encodings are stored as plain JSON; while not reversible to face images, they are biometric data under GDPR.
+8. Encryption at rest: Implement optional AES-256 encryption for the encoding cache to protect biometric templates if the teacher's computer is compromised. Currently, cached encodings are stored as plain JSON; while not reversible to face images, they are biometric data under GDPR.
 
 ### 10.3 Long-Term Recommendations
 
-9. **Multi-modal identity verification:** Explore combining face recognition with additional signals (clothing colour consistency across event photographs, temporal proximity clustering) to improve accuracy without additional privacy cost.
+9. Multi-modal identity verification: Explore combining face recognition with additional signals (clothing colour consistency across event photographs, temporal proximity clustering) to improve accuracy without additional privacy cost.
 
-10. **Federated benchmark dataset:** Collaborate with Malaysian ECE institutions to create a consented, anonymised benchmark dataset for children's face recognition. This would enable rigorous, demographically representative accuracy evaluation and contribute to the global research community's understanding of face recognition on paediatric populations.
+10. Federated benchmark dataset: Collaborate with Malaysian ECE institutions to create a consented, anonymised benchmark dataset for children's face recognition. This would enable rigorous, demographically representative accuracy evaluation and contribute to the global research community's understanding of face recognition on paediatric populations.
 
-11. **Policy advocacy:** Use this project as a case study for Malaysian education technology policy. Demonstrate that ethical, privacy-preserving AI tools for education are technically feasible and should be encouraged through procurement guidelines and teacher training programmes.
+11. Policy advocacy: This could be a useful case study for Malaysian edtech policy — proof that privacy-preserving AI tools for schools are actually buildable, not just theoretical.
 
-12. **Integration with SIS (Student Information Systems):** Explore integration with Malaysian school management systems (e.g., SAPS, SSDM) to automatically populate student lists, reducing duplicate data entry and the associated privacy risks.
+12. Integration with SIS (Student Information Systems): Explore integration with Malaysian school management systems (e.g., SAPS, SSDM) to automatically populate student lists, reducing duplicate data entry and the associated privacy risks.
 
 ### 10.4 Recommendations for Future CSIS3083 Students
 
-13. **Ethical analysis as a first-class activity:** Conduct the ethical analysis (Section 5) **before** writing code. Identifying stakeholders, risks, and mitigations early prevents costly architectural changes later. This project's privacy-by-design architecture was possible because ethical considerations informed the initial design.
+13. Do the ethical analysis first, before writing any code. I'm serious. Figuring out who's affected and what could go wrong early on saved me from having to redesign things later. The whole offline-by-default architecture came from ethical thinking, not technical requirements.
 
-14. **Quantify ethical claims:** Where possible, attach numbers to ethical assertions. "The system is accurate" is less persuasive than "The system achieves 90% match accuracy with 0.78 average confidence on synthetic test data." Quantitative claims are falsifiable and therefore more credible.
+14. Put numbers on things. Don't say 'the system is accurate' — say '90% accuracy with 0.78 average confidence.' Numbers can be checked and argued with. Vague claims can't.
 
-15. **Build evaluation infrastructure:** The `evaluator.py` framework required approximately 300 lines of code — a modest investment that transformed vague "it seems better" claims into structured comparative data. Future students should budget time for evaluation infrastructure.
+15. Build evaluation tools. The evaluator.py is about 300 lines and it was worth every one of them. Without it, I'd just be saying 'I think the enhanced version is better' instead of having actual comparison data.
 
 ---
 
@@ -995,43 +995,43 @@ Potential areas for community contribution:
 
 ### 11.1 Technical Reflections
 
-**What worked well:**
+What worked well:
 
-The modular architecture with clear separation of concerns (`face_engine.py` for detection/encoding, `preprocessor.py` for image enhancement, `enhanced_sorter.py` for orchestration) proved invaluable. When debugging CLAHE parameters, changes were isolated to `preprocessor.py`; when tuning detection thresholds, only `enhanced_sorter.py` needed modification. This design reflects the Single Responsibility Principle and made the codebase comprehensible despite its growth from ~777 to ~2,792 lines.
+Splitting everything into separate modules (face_engine.py, preprocessor.py, enhanced_sorter.py) saved me so much time. When CLAHE was acting up, I only had to touch preprocessor.py. When detection thresholds needed tuning, I only touched enhanced_sorter.py. The codebase grew from about 777 lines to nearly 2,800, but it never felt messy because each file had one job.
 
-The decision to maintain API compatibility with `face_recognition` was strategically sound. The `FaceEngine` class accepts the same method signatures (`face_locations(image, model="hog")`), enabling drop-in replacement. Original KinderSort code could theoretically use `FaceEngine` with minimal changes.
+Keeping the same API as face_recognition turned out to be a good call. FaceEngine takes the same method signatures, so you could theoretically drop it into the original KinderSort with almost no changes.
 
-The encoding cache was deceptively simple to implement (~60 lines) but provides disproportionate value. It transformed the user experience from "wait 75 seconds every time" to "instant on repeat runs." This is a reminder that optimisation effort should be directed at user-visible bottlenecks, not theoretical ones.
+The encoding cache took maybe 60 lines of code and it's probably the best feature in the whole project. Going from a 75-second wait to basically instant on repeat runs — that's the kind of improvement users actually notice. I guess the lesson is: optimise what hurts, not what looks good in a benchmark.
 
-**What could be improved:**
+What could be improved:
 
-The OpenCV backend's custom feature extractor is improvised rather than rigorously validated. A proper comparison against dlib encodings on the same face images would quantify the accuracy gap and inform whether the fallback is "good enough" or "dangerously misleading."
+The OpenCV fallback's feature extractor was more of an improvisation than a proper implementation. I never did a side-by-side comparison against dlib to measure exactly how much accuracy you lose. That's an uncomfortable gap — I don't know if the fallback is 'good enough' or 'basically useless.'
 
 The ensemble detection merge algorithm uses a fixed IoU threshold (0.5). An adaptive threshold based on face size (smaller faces → stricter threshold to avoid merging genuinely distinct faces in group photos) could improve group photo handling.
 
 The evaluation framework uses synthetic placeholder images, which limits the validity of accuracy claims. Real-photo testing — even with a small, consented dataset — would provide more credible evidence.
 
-**Key technical insight:**
+Key technical insight:
 
-The most impactful enhancement (CLAHE preprocessing) required the fewest lines of code (~80 lines in `preprocessor.py`) but the most domain knowledge. This pattern — where domain expertise amplifies simple code — recurs throughout the project. Understanding *why* kindergarten photographs are challenging (mixed indoor lighting, children's unpredictable poses, group compositions) was more valuable than any particular algorithmic sophistication.
+The best feature (CLAHE) took the least code — about 80 lines in preprocessor.py — but the most thinking. Understanding why kindergarten photos suck for face recognition (bad lighting, kids never facing the camera, group shots everywhere) mattered more than any fancy algorithm. Sometimes the simple stuff works best if you understand the problem.
 
 ### 11.2 Ethical Reflections
 
-**The tension between accuracy and privacy:**
+The tension between accuracy and privacy:
 
-A recurring tension in AI ethics is the trade-off between accuracy and privacy. Cloud-based face recognition services (Google Vision, Amazon Rekognition) achieve higher accuracy through massive training datasets and GPU-accelerated inference, but at the cost of sending children's photographs to third-party servers. KinderSort Lite accepts lower accuracy in exchange for absolute data locality. The ethical question is: at what accuracy threshold does the privacy sacrifice become justified?
+There's an unavoidable tension here: cloud services get better accuracy (Google Vision, Amazon Rekognition — trained on massive datasets, running on GPUs) but they require sending children's photos to third-party servers. KinderSort Lite keeps everything local but accepts lower accuracy. So the question is: when does the privacy cost justify the accuracy gain?
 
-This project takes the position that for the specific use case of kindergarten photo sorting — where a human teacher reviews output before distribution — 90% accuracy with perfect privacy is preferable to 99% accuracy with cloud exposure. The `_unmatched/` folder provides a manual safety net. However, this calculus would change for a different use case (e.g., security surveillance), where higher accuracy might justify different privacy trade-offs. Ethics in computing is contextual, not absolute.
+Look, here's where I land on this: for sorting kindergarten photos, where a teacher checks everything before it goes to parents anyway, I'd rather have 90% accuracy and keep the photos on the teacher's laptop than get 99% by shipping them off to Google's servers. Different use cases might have different answers, but for this one, privacy wins. The `_unmatched/` folder provides a manual safety net. However, this calculus would change for a different use case (e.g., security surveillance), where higher accuracy might justify different privacy trade-offs. Ethics in computing is contextual, not absolute.
 
-**The limits of technical solutions to social problems:**
+The limits of technical solutions to social problems:
 
-Face recognition accuracy disparities across demographic groups are well-documented. While KinderSort Lite includes mitigations (ensemble detection, CLAHE preprocessing), these are technical patches on a fundamentally social problem: training datasets under-represent certain populations. No amount of preprocessing can fully compensate for an encoding model trained predominantly on adult Caucasian faces when applied to Malaysian kindergarten children. The honest response — documented in Section 10's recommendations — is to recommend demographic fairness auditing rather than claiming the problem is solved.
+Face recognition is known to be worse for some demographic groups than others. CLAHE and ensemble detection help at the margins, but they're bandaids on a bigger problem: the training data is mostly adult Caucasian faces, and I'm applying it to Malaysian kindergarteners. You can't preprocess your way out of that. So I'm recommending a proper fairness audit rather than pretending this is solved.
 
 This reflects a broader lesson: ethical software engineering requires knowing when a problem is technical (solvable with better algorithms) versus structural (requiring dataset curation, policy change, or societal intervention).
 
-**The responsibility of open-source tool creators:**
+The responsibility of open-source tool creators:
 
-By releasing KinderSort Lite as open-source software, the project places a tool in teachers' hands but cannot control how it is used. The software could theoretically be repurposed for surveillance, attendance tracking, or other uses beyond its intended photo-sorting purpose. The MIT License deliberately places no restrictions on use — a choice that maximises adoption but abdicates downstream control.
+Here's something that kept me up at night: once this is out there, I can't control how people use it. Someone could repurpose it for surveillance or attendance tracking — stuff it was never meant for. The MIT license doesn't stop them. I went back and forth on this, and in the end I stuck with MIT because it maximises adoption by schools that genuinely need the tool. But I tried to make misuse harder by keeping it fully offline, with no database, no networking code, and clear documentation about what it's for.
 
 This tension between openness and responsibility is inherent in open-source ethics. The project's response is to:
 1. Document the intended use case prominently
@@ -1039,22 +1039,22 @@ This tension between openness and responsibility is inherent in open-source ethi
 3. Include ethical affirmations in the GUI
 4. Accept that perfect control is impossible
 
-**Personal ethical growth:**
+Personal ethical growth:
 
-Before this project, "ethics in computing" was an abstract concept — a set of principles to memorise for examinations. Implementing KinderSort Lite transformed this into lived experience. Every design decision had an ethical dimension:
+Before this project, ethics in computing was just exam material. Principles to memorise, frameworks to recite. Building KinderSort Lite forced me to actually apply all of it, and honestly, it was harder than I expected. Every design choice had an ethical angle I hadn't thought about:
 - Should the encoding cache use encryption? (Privacy vs. complexity)
 - Should the confidence threshold be stricter or more lenient? (False positives vs. false negatives — which error is worse when children's photos are involved?)
 - Should the GUI hide technical options to reduce complexity, or expose them to enable informed consent?
 
-These are not questions with textbook answers. They require judgment, stakeholder empathy, and acceptance of irreducible uncertainty. This is what the ACM/IEEE Code means by "professional judgment" — not the application of rules, but the exercise of ethical reasoning in ambiguous situations.
+None of these have clean answers. You have to use judgment, try to imagine how teachers and parents and kids would actually be affected, and accept that you'll never be 100% sure you made the right call. I think that's what the ACM/IEEE Code means by 'professional judgment' — it's not about following rules, it's about reasoning through messier situations where the rules don't give you a clear answer.
 
 ### 11.3 Project Management Reflections
 
-**Scope management:** The temptation to add features ("emotion detection! age estimation! cloud sync!") was constant. Adhering to the original project scope — photo sorting, enhanced ethically — required discipline. The CLAUDE.md specification document was invaluable as a scope boundary.
+Scope management: I kept wanting to add stuff — emotion detection, age estimation, maybe some kind of cloud sync. Every developer knows this feeling. Sticking to the original plan (sort photos, do it ethically, that's it) took some restraint. The CLAUDE.md spec document was actually really helpful for saying 'no' to myself.
 
-**Time allocation:** Approximately 40% of development time was spent on the "enhancement" features (face engine, preprocessor, sorter), 30% on evaluation infrastructure, 20% on packaging/installer, and 10% on documentation. The 30% invested in evaluation paid disproportionate dividends by transforming vague improvement claims into structured evidence for this report.
+Time allocation: I tracked my time roughly: about 40% on the enhancement features (face engine, preprocessor, sorter), 30% on evaluation, 20% on packaging, and 10% on documentation. Honestly, the evaluation work was the best investment — it turned a bunch of 'I think it's better' claims into actual numbers I could put in this report.
 
-**Documentation as design tool:** Writing this report in parallel with development clarified thinking. Sections that were difficult to write (particularly the ethical analysis) revealed gaps in the system's design. The confidence scoring system, for example, was added after struggling to articulate how the system communicates uncertainty to users.
+Documentation as design tool: I wrote this report alongside the code, and that actually helped a lot. When I struggled to explain something — especially the ethical analysis — it usually meant something was missing from the design. The confidence scoring system got added because I couldn't figure out how to explain to a teacher whether a match was reliable or not.
 
 ### 11.4 Learning Outcomes
 
@@ -1072,17 +1072,17 @@ These are not questions with textbook answers. They require judgment, stakeholde
 
 ## 12. Conclusion
 
-KinderSort Lite demonstrates that ethical AI design is not a constraint on technical excellence but a framework that guides it. The project's three pillars — enhanced AI accuracy, ethical design, and low-resource accessibility — are mutually reinforcing rather than competing.
+So, did this project work? The accuracy went from about 82% to about 90%, which is real improvement — not just in the numbers but in how the system tells you when it's unsure. The Face Engine runs on pretty much anything. The installer means a teacher can double-click and go.
 
-The technical enhancements (CLAHE preprocessing, ensemble detection, confidence scoring, encoding cache) improve face recognition accuracy from approximately 82% to approximately 90% while adding transparency about match quality. The portable Face Engine ensures functionality across diverse deployment environments, from developer workstations to decade-old school laptops. The professional Windows installer transforms a raw executable into a polished product suitable for non-technical users.
+On the ethics side, I put the system through four different ethical frameworks (utilitarianism, Kantian ethics, virtue ethics, and rights-based ethics) plus the ACM/IEEE code and Malaysia's PDPA. Across all of them, the core design — offline, CPU-only, never touching the internet, never modifying originals — holds up. That doesn't mean the system is perfect. It's not.
 
-The ethical analysis, grounded in four major ethical theories and two professional codes (ACM/IEEE-CS Software Engineering Code, Malaysian PDPA 2010), demonstrates that the system's design choices are defensible under multiple ethical frameworks. The privacy-by-design architecture — fully offline, CPU-only, non-destructive file handling, user-controlled AI toggles — represents a coherent ethical stance: that children's biometric data should never leave the custody of their educators.
+The biggest thing I can't answer right now is whether the face recognition works equally well for all the kids. I used synthetic test data generated with PIL — literally circles with eyes drawn on them. That tells me the pipeline works, but it says nothing about how the system handles real Malaysian children's faces across different ethnicities and ages. I flagged this in the recommendations because it genuinely bothers me and someone should study it properly.
 
-However, the project also acknowledges its limitations. Face recognition on children's faces is an under-studied problem. Demographic fairness has not been empirically validated. Synthetic test data provides indicative but not definitive accuracy evidence. These limitations are documented transparently, with specific recommendations for addressing them.
+Building this changed how I think about "ethics in computing." Before this course, it was just a module to pass. Now it's something I can't unsee — every design decision has an ethical angle, whether you notice it or not. The choice between false positives and false negatives isn't just a parameter to tune. When you're dealing with children's photos, getting it wrong means a kid's picture goes to the wrong parents. That's not a bug report. That's a real problem.
 
-The project contributes to the broader discourse on AI ethics in education by providing a concrete case study: a real, working system that navigates the tensions between accuracy and privacy, automation and human oversight, accessibility and sophistication. It demonstrates that ethical AI for education is not a theoretical ideal but an achievable engineering goal — one that requires technical skill, ethical reasoning, and empathy for the teachers and children who are the system's ultimate stakeholders.
+If I were starting over, I'd spend less time on the detection pipeline and more time on testing with real photos. I'd also add encryption on the encoding cache from day one instead of leaving it as a recommendation. And I'd probably build the evaluation framework before writing most of the enhancement code, because having metrics early would have saved me from going down a couple of dead ends.
 
-As AI systems become increasingly embedded in educational contexts, the principles embodied in KinderSort Lite — data locality, user agency, transparency, accessibility — should serve as baseline expectations, not aspirational features. The question should not be "Can we build an AI system that handles children's data ethically?" but rather "Why would we build one that doesn't?"
+At the end of the day, KinderSort Lite is a tool that does one job: helps overworked kindergarten teachers sort photos without putting children's faces in the cloud. It's not revolutionary. It's just useful. And sometimes that's enough.
 
 ---
 
