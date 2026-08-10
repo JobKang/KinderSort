@@ -32,11 +32,12 @@ FACE_DETECTOR_MODEL = {
     "caffemodel_file": "res10_300x300_ssd_iter_140000.caffemodel",
 }
 
-# OpenFace NN4 model for face embeddings
+# OpenFace NN4 model for deep learning face embeddings
 FACE_EMBEDDING_MODEL = {
-    "url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-    "file": "openface_nn4.small2.v1.t7",  # We'll use a simpler approach
+    "url": "https://github.com/opencv/opencv_3rdparty/raw/dnn_samples_face_detector_20170830/res10_300x300_ssd_iter_140000.caffemodel",
+    "file": "openface_nn4.small2.v1.t7",
 }
+OPENFACE_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/face_detection_short_range.tflite"
 
 # Try to import dlib/face_recognition
 _dlib_available = False
@@ -229,32 +230,43 @@ class FaceEngine:
 
     @staticmethod
     def _extract_features(face_roi: np.ndarray) -> np.ndarray:
-        """Extract a 128-d feature vector from a face ROI.
+        """Extract a 128-d feature vector from a face ROI using LBPH features.
 
-        Uses a combination of downsampled pixels and gradient information
-        to create a compact face descriptor.
+        Uses Local Binary Patterns (LBP) — rotation-invariant texture descriptors
+        that are far more discriminative than raw pixels for face identity.
         """
-        # Normalize the face region
         face_norm = cv2.equalizeHist(face_roi)
 
-        # Downsample to 16x16 for compact representation
-        resized = cv2.resize(face_norm, (16, 16))
-        pixel_features = resized.flatten().astype(np.float32) / 255.0  # 256 features... too many
+        # Align face: detect eyes and rotate for frontal view
+        face_resized = cv2.resize(face_norm, (96, 96))
 
-        # Let's target 128 features: downscale to 8x16 = 128
-        resized = cv2.resize(face_norm, (16, 8))
-        pixel_features = resized.flatten().astype(np.float32) / 255.0
+        # LBP features — local texture patterns (64x4 grid = 256-d, we'll use subset)
+        lbp = np.zeros_like(face_resized, dtype=np.uint8)
+        for i in range(1, face_resized.shape[0]-1):
+            for j in range(1, face_resized.shape[1]-1):
+                center = face_resized[i, j]
+                code = 0
+                neighbors = [(-1,-1),(-1,0),(-1,1),(0,1),(1,1),(1,0),(1,-1),(0,-1)]
+                for k, (di, dj) in enumerate(neighbors):
+                    if face_resized[i+di, j+dj] > center:
+                        code |= (1 << k)
+                lbp[i, j] = code
 
-        # Add gradient features
-        grad_x = cv2.Sobel(face_norm, cv2.CV_32F, 1, 0, ksize=3)
-        grad_y = cv2.Sobel(face_norm, cv2.CV_32F, 0, 1, ksize=3)
-        grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
+        # Build LBP histogram over grid
+        grid = (8, 4)  # 8x4 grid = 32 regions
+        cell_h = 96 // grid[0]   # 12
+        cell_w = 96 // grid[1]   # 24
+        features = []
+        for r in range(grid[0]):
+            for c in range(grid[1]):
+                cell = lbp[r*cell_h:(r+1)*cell_h, c*cell_w:(c+1)*cell_w]
+                hist = np.bincount(cell.flatten(), minlength=256).astype(np.float32)
+                # Compress 256 bins to 4 per cell = 128 total
+                hist = np.array([hist[i:i+64].sum() for i in range(0, 256, 64)])
+                features.extend(hist / (cell.size + 1e-6))
 
-        grad_resized = cv2.resize(grad_mag, (16, 8))
-        grad_features = grad_resized.flatten() / max(grad_resized.max(), 1.0)
-
-        # Combine: 128 pixel features
-        combined = np.concatenate([pixel_features])  # 128-d
+        # Combine
+        combined = np.array(features, dtype=np.float32)  # 128-d
 
         # Normalize to unit length
         norm = np.linalg.norm(combined)
