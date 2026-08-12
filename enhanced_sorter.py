@@ -18,6 +18,12 @@ from pathlib import Path
 
 import numpy as np
 
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    _CRYPTO_AVAILABLE = True
+except ImportError:
+    _CRYPTO_AVAILABLE = False
+
 from face_engine import FaceEngine
 from preprocessor import ImagePreprocessor, load_and_preprocess
 from utils import (
@@ -32,7 +38,31 @@ from utils import (
 # Cache location — stored in app data, not the output folder
 # ---------------------------------------------------------------------------
 CACHE_DIR = Path.home() / ".kindersort" / "cache"
-CACHE_FILE = CACHE_DIR / "encoding_cache.json"
+CACHE_FILE = CACHE_DIR / "encoding_cache.enc"  # encrypted (AES-256-GCM)
+CACHE_KEY_FILE = CACHE_DIR / ".cache_key"
+
+
+def _get_or_create_cache_key() -> bytes:
+    """Load the local AES-256 key, generating one on first use.
+
+    The encoding cache holds derived biometric data (face encodings), so
+    it is encrypted at rest rather than stored as plain JSON. The key is
+    a per-machine random 256-bit value stored alongside the cache with
+    restrictive file permissions; this protects against casual disk
+    inspection or the cache file being copied off the machine, though it
+    is not a substitute for full-disk encryption if the whole machine is
+    compromised.
+    """
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if CACHE_KEY_FILE.exists():
+        return CACHE_KEY_FILE.read_bytes()
+    key = AESGCM.generate_key(bit_length=256)
+    CACHE_KEY_FILE.write_bytes(key)
+    try:
+        os.chmod(CACHE_KEY_FILE, 0o600)  # owner read/write only (no-op on Windows FAT)
+    except OSError:
+        pass
+    return key
 
 
 class EnhancedPhotoSorter:
@@ -132,23 +162,30 @@ class EnhancedPhotoSorter:
         if not self.use_cache or not CACHE_FILE.exists():
             return None
 
-        try:
-            with open(CACHE_FILE) as f:
-                raw = f.read()
-        except OSError:
+        if not _CRYPTO_AVAILABLE:
+            self.logger.warning(
+                "cryptography package not installed — skipping encrypted cache"
+            )
             return None
 
-        # --- SHA-256 integrity check -----------------------------------
+        try:
+            blob = CACHE_FILE.read_bytes()
+            key = _get_or_create_cache_key()
+            nonce, ciphertext = blob[:12], blob[12:]
+            raw = AESGCM(key).decrypt(nonce, ciphertext, None).decode("utf-8")
+        except OSError:
+            return None
+        except Exception:
+            self.logger.warning("Cache decryption failed — treating as invalid")
+            return None
+
+        # Integrity is already guaranteed by AES-GCM's authentication tag
+        # (decrypt() above raises if the ciphertext was tampered with), so
+        # a separate SHA-256 check is redundant here.
         try:
             data = json.loads(raw)
         except (json.JSONDecodeError, KeyError):
             self.logger.warning("Cache corrupted — invalid JSON")
-            return None
-
-        stored_hash = data.get("_sha256", "")
-        computed_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-        if stored_hash and stored_hash != computed_hash:
-            self.logger.warning("Cache integrity check failed (SHA-256 mismatch)")
             return None
 
         # --- File metadata validation ----------------------------------
@@ -172,6 +209,13 @@ class EnhancedPhotoSorter:
         if not self.use_cache:
             return
 
+        if not _CRYPTO_AVAILABLE:
+            self.logger.warning(
+                "cryptography package not installed — cache not saved "
+                "(refusing to write biometric data unencrypted)"
+            )
+            return
+
         try:
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -181,16 +225,21 @@ class EnhancedPhotoSorter:
             }
             data["_ref_meta"] = self._ref_metadata(self.reference_folder)
             data["_timestamp"] = time.time()
+            payload = json.dumps(data).encode("utf-8")
 
-            # Compute and embed SHA-256 of the serialized payload
-            raw = json.dumps(data, sort_keys=True)
-            data["_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+            key = _get_or_create_cache_key()
+            nonce = os.urandom(12)
+            ciphertext = AESGCM(key).encrypt(nonce, payload, None)
 
-            with open(CACHE_FILE, "w") as f:
-                json.dump(data, f)
+            with open(CACHE_FILE, "wb") as f:
+                f.write(nonce + ciphertext)
+            try:
+                os.chmod(CACHE_FILE, 0o600)
+            except OSError:
+                pass
 
             self.logger.info(
-                "Saved %d encodings to cache (%s)",
+                "Saved %d encodings to encrypted cache (AES-256-GCM, %s)",
                 len(self._student_encodings),
                 CACHE_FILE,
             )
@@ -206,8 +255,9 @@ class EnhancedPhotoSorter:
         try:
             if CACHE_FILE.exists():
                 CACHE_FILE.unlink()
-                return True
-            return True  # nothing to delete
+            if CACHE_KEY_FILE.exists():
+                CACHE_KEY_FILE.unlink()
+            return True
         except OSError:
             return False
 
