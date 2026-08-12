@@ -134,7 +134,8 @@ Output/
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python main.py
+python main_lite.py   # Enhanced version (recommended) — CLAHE, ensemble detection, Fast Mode, encrypted cache
+# python main.py      # Original baseline version (dlib-only, no enhancements)
 ```
 
 Build Windows executable:
@@ -143,6 +144,26 @@ Build Windows executable:
 pyinstaller --onefile --windowed --name "KinderSort" main.py
 # Output: dist/KinderSort.exe
 ```
+
+### Windows: installing dlib / face_recognition
+
+The optional `face_recognition` + `dlib` backend (used for the baseline
+comparison in `evaluator.py`) can fail to build from source on Windows with
+`UnicodeDecodeError: 'cp950' codec can't decode byte...` — this is a locale
+encoding bug in dlib's setup script, not a missing compiler. Fix:
+
+```bash
+pip install dlib-bin              # precompiled wheel, skips the broken build step
+pip install face_recognition --no-deps
+pip install Click face-recognition-models
+pip install "setuptools<81"       # face_recognition_models needs pkg_resources,
+                                   # removed in setuptools 81+
+```
+
+Without this, KinderSort Lite still runs fine — it automatically falls back
+to an OpenCV-based detector (see `face_engine.py`) with somewhat lower
+accuracy. dlib is only required for the baseline comparison in
+`evaluator.py` and the original `main.py`.
 
 ## Human Review and Recognition Limitations
 
