@@ -37,6 +37,7 @@ class KinderSortLiteApp(tk.Tk):
         self._preprocessing_var = tk.BooleanVar(value=True)
         self._ensemble_var = tk.BooleanVar(value=True)
         self._cache_var = tk.BooleanVar(value=True)
+        self._fast_mode_var = tk.BooleanVar(value=False)
 
         # Cancellation
         self._cancel_flag = threading.Event()
@@ -100,6 +101,12 @@ class KinderSortLiteApp(tk.Tk):
             options_frame,
             text="Cache Encodings (skips re-encoding on re-run — faster)",
             variable=self._cache_var,
+        ).pack(anchor="w")
+
+        tk.Checkbutton(
+            options_frame,
+            text="Fast Mode (HOG only, skip CNN — best for slow laptops with large batches)",
+            variable=self._fast_mode_var,
         ).pack(anchor="w")
 
         # --- Cache management row ---------------------------------------
@@ -303,6 +310,7 @@ class KinderSortLiteApp(tk.Tk):
             use_preprocessing=self._preprocessing_var.get(),
             use_cache=self._cache_var.get(),
             ensemble_detection=self._ensemble_var.get(),
+            fast_mode=self._fast_mode_var.get(),
         )
 
         thread = threading.Thread(

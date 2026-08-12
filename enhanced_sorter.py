@@ -61,6 +61,7 @@ class EnhancedPhotoSorter:
         use_preprocessing: bool = True,
         use_cache: bool = True,
         ensemble_detection: bool = True,
+        fast_mode: bool = False,
     ) -> None:
         """Initialise the enhanced sorter.
 
@@ -72,6 +73,10 @@ class EnhancedPhotoSorter:
             use_preprocessing: Enable CLAHE + brightness normalization.
             use_cache: Cache face encodings to disk for faster re-runs.
             ensemble_detection: Use HOG + CNN ensemble for better face detection.
+            fast_mode: Skip CNN detection entirely (HOG only, even as a
+                fallback). Trades recall for speed on large photo batches —
+                useful on slow school laptops where the ~2s/image CNN pass
+                is the main bottleneck. Overrides ensemble_detection.
         """
         self.reference_folder = reference_folder
         self.events_folder = events_folder
@@ -79,6 +84,7 @@ class EnhancedPhotoSorter:
         self.logger = logger
         self.use_cache = use_cache
         self.ensemble_detection = ensemble_detection
+        self.fast_mode = fast_mode
 
         self._student_encodings: dict[str, np.ndarray] = {}
         self._student_margin: dict[str, float] = {}
@@ -509,6 +515,11 @@ class EnhancedPhotoSorter:
             2. If HOG finds nothing, try CNN (slower, ~2s, but more sensitive)
             3. If ensemble mode: merge both results for maximum recall
 
+        In fast_mode, only HOG ever runs — CNN is skipped in both the
+        ensemble step and the no-detection fallback. This sacrifices recall
+        (some profile/occluded faces get missed) for a large speed win on
+        big batches on slow hardware.
+
         Returns:
             List of face locations as (top, right, bottom, left) tuples.
         """
@@ -517,6 +528,11 @@ class EnhancedPhotoSorter:
 
         if hog_locations:
             self._detection_methods_used["hog"] += 1
+
+        if self.fast_mode:
+            return hog_locations
+
+        if hog_locations:
             if not self.ensemble_detection:
                 return hog_locations
 
