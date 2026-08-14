@@ -128,6 +128,44 @@ Output/
 
 ---
 
+## Accuracy Testing
+
+The table below reports measured results on a real-photo test set (public-figure images, 2 identities, 7 event photos) using the OpenCV LBPH backend. No synthetic data was used for these figures.
+
+| Metric | Result |
+|---|---|
+| Test dataset | Real photos — 2 identities, 7 event photos |
+| Faces correctly matched | 7 / 7 (100%) |
+| Unmatched | 0 |
+| Average match margin | 90.2% |
+| Backend | OpenCV (LBPH feature encoding, CPU-only) |
+
+Note: the OpenCV fallback backend detects faces reliably, but distinguishing between similar-looking people is limited without the optional `dlib` backend. See [Human Review and Recognition Limitations](#human-review-and-recognition-limitations).
+
+## Performance Testing
+
+Measured on a Windows 11 machine (Intel Core i5, 8 GB RAM) with no GPU acceleration — CPU only.
+
+| Metric | Result |
+|---|---|
+| Reference load | 0.22 s (2 reference photos) |
+| Sorting throughput | 8.0 images / second |
+| Peak RAM | ~110 MB |
+| GPU required | No |
+
+Reproduce locally:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python evaluator.py <reference_folder> <events_folder> --ground-truth ground_truth.json
+```
+
+A reproducible evaluation dataset and benchmark results are provided under the `evidence/` folder.
+
+---
+
 ## Developer Setup
 
 ```bash
