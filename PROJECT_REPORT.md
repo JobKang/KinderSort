@@ -361,25 +361,30 @@ Metrics collected:
 
 ### 4.2 Test Dataset Design
 
-The `generate_test_data.py` module creates a structured test dataset with known ground truth:
+For real-world validation I put together a small photo set with actual faces, not synthetic ones. It lives in Test_PhotoSet_E and looks like this:
 
 ```
-test_data/
-├── reference/
-│   ├── Student_A.jpg, Student_B.jpg, Student_C.jpg,
-│   ├── Student_D.jpg, Student_E.jpg
-├── test_events/
-│   └── Event_1/
-│       ├── photo_001.jpg → Student_A
-│       ├── photo_002.jpg → Student_B
-│       ├── ...
-│       └── photo_050.jpg → Student_E
-└── ground_truth.json
+Test_PhotoSet_E/
+├── References_Fixed/
+│   ├── Elon_Musk.jpg
+│   └── Jensen_Huang.jpg
+├── Events_Fixed/
+│   ├── Conference/
+│   │   ├── photo_001.jpg
+│   │   └── ... (12 photos)
+│   └── Meeting/
+│       ├── photo_001.jpg
+│       └── ... (6 photos)
+└── Output/   (sorted results go here)
 ```
 
-Each test image is generated with PIL — literally a circle with two dots for eyes and a line for a mouth, with a different background colour per student. Is this realistic? No, obviously not. It's a smiley face. But it gives me a reproducible baseline, and more importantly, it means I'm not using any real kids' photos during development. That felt like the right call ethically, even if it limits what I can claim about accuracy.
+Two reference people, eighteen event photos split across two folders. I used public figures on purpose. Using real kids' faces felt wrong for development, but I still needed something the detector would actually recognise, so public appearances and press photos of well-known people fit the bill without touching anyone's private life.
 
-I know this is a big limitation. The numbers in the next section are based on synthetic data, not real faces. Take them as directional rather than gospel.
+There are a couple of honest caveats here. The event photos are news and conference shots, so lighting, angle and framing are all over the place. That's good for stress-testing, but it isn't the same as a kindergarten's controlled classroom snaps. And each reference is a single photo per person, which is less data than the original design assumed. I kept it at two people because the point of this set was to check whether the enhanced pipeline can tell two similar-looking adults apart, which is a much harder test than matching cartoon faces.
+
+The ground truth is simple to state: every event photo contains at least one of the two reference people, and the correct answer is whichever face the detector finds and matches. I didn't write a JSON ground-truth file for this set because with only two identities and eighteen photos the mapping is easy to verify by eye. For the larger synthetic set I do use a generated ground_truth.json, but for this real-face check manual inspection was faster and less error-prone than automating it.
+
+This is also where I ran into the biggest technical limitation of the project, and I want to be upfront about it rather than hide it. The OpenCV fallback backend finds faces fine, but telling one face from another is where it struggles. More on that in the next section, because it directly shapes the numbers I can honestly report.
 
 ### 4.3 Expected Performance Improvements
 
